@@ -1,0 +1,1 @@
+Get-ChildItem -Path ".\" -Recurse -Exclude *.ps1 | ForEach-Object {if ((Get-Content -Path $_).contains("E")) {$_}}
