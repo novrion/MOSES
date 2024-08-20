@@ -1,10 +1,15 @@
-This branch holds the preliminary MOSES C++ code written in 2023. Very small modifications and a smaller refactor has been made since then. The code is based on pseudocode from 1976.
-The model is very susceptible to changes in input data, which can cause extreme outcomes. The model can create exponential increases of values that is unrealistic if inconsistent input data is utilised.
-No more time will be allocated to fine-tuning this outdated and preliminary C++ model. Instead, time will be used to create a more stable and realistic MOSES model based on the 1989 pseudocode.
-The time spent coding this model is not wasted as it proves the function of MOSES in object code and creates a foundation for the next version. This is since the pseudocode from 1989 is in many ways similar to the pseudocode from 1976.
+# MOSES-1976
+MOSES-1976 is the preliminary MOSES C++ code written in 2023. Very small modifications and a smaller refactor has been made since then. The code is based on the pseudocode in **_A MICRO-MACRO INTERACTIVE SIMULATION MODEL OF THE SWEDISH ECONOMY_ (Gunnar Eliasson, 1976)**.
 
-The "bin" folder holds binaries. The model is executed by running the "moses.sh" script in the "scripts" folder. Input data is in the folder "data". The source code is in the "src" folder. The output is written to the file "out" in the "data" folder. 
-The g++ compiler and bash is required to run the model. 
-A model run output is examplified in the data/out file. The data used for the run has been hidden. 
+The model is susceptible to changes in input data, which can cause extreme outcomes. The model can create exponential increases of values that is unrealistic if inconsistent input data is utilised.
 
-The model has only been tested on Linux and may have file-related bugs on Windows. The LF and CRLF line ending difference may cause issues on Windows.
+# Running The Model
+MOSES-1976 is executed with **scripts/moses.sh**.
+
+The model requires the **g++ compiler** and **bash** to execute.
+
+Results are written to **data/out**. A model run is examplified in **data/out**. Its input data has been hidden.
+
+**moses.sh** compiles input data from **data/** to **data/in**, which the program reads from line by line for each variable. The current model does not have a robust system for handling data. Use the function **INPUT** in **src/main.cpp** and **moses.sh** as a reference for how input data should be formatted. Note the formatting of data at the end of **INPUT**, which is used to facilitate the use of data from the original MOSES APL program.
+
+The model has only been tested on Linux and may have file-related bugs on Windows. The **LF** and **CRLF** line ending difference may cause issues on Windows.
