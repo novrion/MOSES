@@ -1,5 +1,5 @@
 # MOSES-1976
-MOSES-1976 is the preliminary MOSES C++ code written in 2023. Small modifications and a smaller refactor has been made since then. The code is based on the pseudocode in **_A MICRO-MACRO INTERACTIVE SIMULATION MODEL OF THE SWEDISH ECONOMY_ (Gunnar Eliasson, 1976)**.
+MOSES-1976 is the preliminary MOSES C++ code written in 2023. Small modifications and a refactor has been made since then. The code is based on the pseudocode in **_A MICRO-MACRO INTERACTIVE SIMULATION MODEL OF THE SWEDISH ECONOMY_ (Gunnar Eliasson, 1976)**.
 
 The model is susceptible to changes in input data, which can cause extreme outcomes. The model can create exponential increases of values that is unrealistic if inconsistent input data is utilised.
 
