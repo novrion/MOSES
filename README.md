@@ -1,1 +1,4 @@
-This branch holds the C++ MOSES model based on pseudocode from 1989. The 1989 model is not finished.
+# MOSES-1989
+MOSES-1989 is based on the pseudocode in **_MOSES Code_ (Albrecht James W. et al., 1989)**.
+
+The model is not finished.
