@@ -7,8 +7,8 @@ The aspiration of this project is to replicate the most recent APL MOSES model i
 ### Branches
 This repository holds multiple C++ MOSES versions.
 
-**MOSES-1976**  
-Based on pseudocode in **_A MICRO-MACRO INTERACTIVE SIMULATION MODEL OF THE SWEDISH ECONOMY_ (Gunnar Eliasson, 1976)**.
+**MOSES-1989**  
+Based on pseudocode in **_MOSES Code_ (James W. Albrecht et al., 1989)** and the current MOSES APL project.  
 
-**MOSES-1989** (in development)  
-Based on pseudocode in **_MOSES Code_ (James W. Albrecht et al., 1989)**.
+**MOSES-1976** (outdated)  
+Based on pseudocode in **_A MICRO-MACRO INTERACTIVE SIMULATION MODEL OF THE SWEDISH ECONOMY_ (Gunnar Eliasson, 1976)**.
