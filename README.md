@@ -1,4 +1,3 @@
-# MOSES-1989
 # MOSES - Model Of The Swedish Economic System
 
 This repository holds C++ models of the **Model Of The Swedish Economic System**.
