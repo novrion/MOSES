@@ -1,0 +1,1803 @@
+MOSES model-1989 pseudocode
+by Elias Lindstenz
+
+simulate():
+	initialise()
+	for each year
+		simulate_year()
+		year += 1
+
+simulate_year():
+	yearly_init()
+
+	for each firm
+		yearly_exp()
+		yearly_targ()
+
+	for each relative quarter
+		simulate_quarter()
+		quarter += 1
+
+	for each firm
+		yearly_update()
+
+simulate_quarter():
+	quarterly_exp()
+	prodplan()
+	labour_market()
+	export_market()
+	domestic_market()
+	sto_system()
+
+	for each firm
+		finalqpqsqm()
+		quarterly_cum()
+
+	invfin()
+	government_accounting()
+	monetary_sector()
+	national_accounting()
+
+yearly_init():
+	cumgnpcur = 0
+	cumgnpfix = 0
+	cumexport = 0
+	cumimport = 0
+
+	gov.yearly_init()
+
+	for each firm
+		yearly_init()
+
+Government::yearly_init():
+	cumwtax   = 0
+	cumitax   = 0
+	cumvatax  = 0
+	cumctax   = 0
+	cumws     = 0
+	cuml      = 0
+	cuminv    = 0
+	cumpurch  = 0
+	cumtrans  = 0
+	cumsubs   = 0
+	cummprint = 0
+	cumint    = 0
+
+Firm::yearly_init():
+	cumq    = 0
+    cumm    = 0
+    cumsu   = 0
+    cums    = 0
+    cump    = 0
+    cumws   = 0
+    cuml    = 0
+    cuminv  = 0
+    cumva   = 0
+    cumsnet = 0
+
+Firm::yearly_exp():
+	histdp = smp * histdp + (1 - smp) * dp
+    histdpdev = smp * histdpdev + (1 - smp) * (dp - expdp)
+    histdpdev2 = smp * histdpdev2 + (1 - smp) * (dp - expdp)^2
+    expidp = histdp + e1 * histdpdev - e2 * sqrt(histdpdev2)
+    expdp = (1 - r) * expidp + r * expxdp
+
+    histdw = smw * histdw + (1 - smw) * dw
+    histdwdev = smw * histdwdev + (1 - smw) * (dw - expdw)
+    histdwdev2 = smw * histdwdev2 + (1 - smw) * (dw - expdw)^2
+    expidw = histdw + e1 * histdwdev + e2 * sqrt(histdwdev2)
+    expdw = (1 - r) * expidw + r * expxdw
+
+    histds = sms * histds + (1 - sms) * ds
+    histdsdev = sms * histdsdev + (1 - sms) * (ds - expds)
+    histdsdev2 = sms * histdsdev2 + (1 - sms) * (ds - expds)^2
+    expids = histds + e1 * histdsdev - e2 * sqrt(histdsdev2)
+    expds = (1 - r) * expids + r * expxds
+
+Firm::yearly_targ():
+	mhist = max(0, smt * mhist + (1 - smt) * m)
+	targm = mhist * (1 + eps)
+
+quarterly_exp():
+	for each firm
+		quarterly_exp()
+		quarterly_targ()
+
+	for each market
+		quarterly_exp()
+
+	for each external
+		quarterly_exp()
+
+Firm::quarterly_exp():
+	qexpdp = expdp/4
+	qexpdw = expdw/4
+	qexpds = expds/4
+
+	if last quarter in year
+		qexpdp += fip * (qdp - qexpdp)
+		qexpdw += fiw * (qdw - qexpdw)
+		qexpds += fis * (qds - qexpds)
+
+	qexpp = qp * (1 + qexpdp)
+	qexpw = qw * (1 + qexpdw)
+	qexps = qs * (1 + qexpds)
+
+Firm::quarterly_targ():
+	qtargm = targm
+
+Market::quarterly_exp():
+	qexpdpim = sum(qq * qexpdp) / sum(qq)
+	qexppim = (1 - txva2) * qpdom * (1 + qexpdpim)
+
+External::quarterly_exp():
+	qexpdpim = qdp - qchtxva2
+	qexppim = (1 - txva2) * qpdom * (1 + qexpdpim)
+
+prodplan():
+	luupdate()
+	prodfront()
+	for each firm
+		init_prodplan()
+		if not target_search()
+			nullify_firm()
+
+	if no firms left in a market then
+		exit simulation
+
+	for each firm
+		qplanqsave = qplanq
+
+luupdate():
+	labour.luupdate()
+	for each firm
+		luupdate()
+
+Labour::luupdate():
+	lf = lu + gov.l + sum(firm.l)
+	lu *= (1 - ret)
+	lu += entry * lf
+
+Firm::luupdate():
+	l *= (1 - ret)
+	for i = 0 to 3
+		aman[i] *= (1 - ret)
+
+prodfront():
+	for each market
+		mtec *= (1 + qdmtec)
+
+	for each firm
+		prodfront()
+
+Firm::prodfront():
+	qtop *= (1 - rho)
+
+	qchqtop1 = (1 - loss) * (qinv * inveff) / qp;
+	qchqtop2 = min(loss * ((qinv * inveff) / qp) * ((resmax - res) / resmax),
+						((resmax - res) / (1 - resmax)) * (qtop + qchqtop1))
+	qchqtop = qchqtop1 + qchqtop2
+
+	res = (res * (qtop + qchqtop1) + qchqtop2) / (qtop + qchqtop)
+	if res < 0 or res > resmax then
+		exit simulation
+
+	tec = (qtop + qchqtop) / ((qtop / tec) + (qchqtop / mtec))
+	qtop += qchqtop
+
+Firm::init_prodplan():
+	qexpsu = qexps / qexpp;
+	qplanq = max(0, qexpsu + (optsto - sto) / (4 * tmsto))
+
+Firm::target_search():
+	// matrix multiplication between the firm's market's io and each sector's price
+	qexppnet = qexpp - share * (io x (qpdom * (1 - txva2)))
+
+	if qplanq >= qtop * (1 - res) * wtix then
+		return plan_implies_recruitment()
+
+	if qplanq > qfr(l) then
+		if sat(qplanq, rfq(qplanq)) then
+			qplanl = rfq(qplanq)
+			handle_layoffs()
+			return true
+		else
+			return false
+	
+	if sat(qplanq, l) then
+		qplanl = l
+		handle_layoffs()
+		return true
+	
+	return try_increase_production()
+
+Firm::plan_implies_recruitment():
+	if sat(qfr(l), l) then
+		solve()
+		handle_layoffs()
+		return true
+	else
+		return try_reduce_slack(qfr(l))
+
+Firm::try_increase_production():
+	q2 = min(qfr(l), qexpsu + maxsto - sto)
+	IF sat(q2, l) THEN
+		qplanq = (l * qexpw/4) / ((1 - qtargm) * qexppnet)
+		qplanl = l
+		handle_layoffs()
+		return true
+	
+	if q2 == qfr(l) then
+		return try_reduce_production()
+
+	if sat(q2, rfq(q2)) then
+		qplanq = q2
+		qplanl = ((1 - qtargm) * q2 * qexppnet) / (qexpw/4)
+		handle_layoffs()
+		return true
+	
+	return try_reduce_production()
+
+Firm::try_reduce_production():
+	if sat(qplanq, rfq(qplanq) then
+		solve()
+		handle_layoffs()
+		return true
+	else
+		return try_reduce_slack(qplanq)
+
+Firm::try_reduce_slack(q7):
+	IF sat(q7, rfq((1 - res) / (1 - resdown * res) * q7)) THEN
+		qplanq = q7
+		qplanl = ((1 - qtargm) * q7 * qexppnet) / (qexpw/4)
+		res = 1 - (q7 * (1 - res)) / qfr(qplanl)
+		handle_layoffs()
+		return true
+
+	res *= resdown
+
+	if sat(0, 0) then
+		solve()
+		handle_layoffs()
+		return true
+	
+	// Production plan could not be found. Firm is nullified after returning false.
+	return false
+
+Firm::handle_layoffs():
+	layoff = max(0, l - qplanl)
+	aman[0] = min(layoff, aman[1])
+	aman[1] = min(layoff - aman[0], aman[2])
+	aman[2] = layoff - aman[0] - aman[1]
+
+labour_market():
+	glabour()
+	indalabour()
+	for each firm
+		planqrevise()
+
+Government::glabour():
+	qchl = min(lu, l * ret + qrealchl)
+	l += qchl - ret * l
+	lu -= qchl
+
+	qdw = qdwind
+	qw *= (1 + qdw)
+
+indalabour():
+	labour_search()
+	labour_update()
+
+labour_search():
+	// chl, ww, and ll are temporary vectors
+	// ww and chl store each firms' wage and desired change in labour
+	// ll stores each firms' labour, and lastly the unemployment pool (lu)
+	for each firm
+		ww = qw + iota * (qexpw - qw)
+		ll = l
+		if chm > 0 then
+			chl = qplanl - l
+		else
+			chl = rfq(qplanq) - l
+	ll = lu
+
+	sort firms in descending order of chl/ll
+	
+	repeat niter times
+		for each firm
+			if chl <= 0 then
+				go to next firm
+			
+			i = this firm
+			target = choose_labour_target()
+
+			if target is the unemployment pool then
+				handle_successful_attack()
+			else
+				if ww[i] > ww[target] * (1 - gamma) then
+					handle_successful_attack()
+				else
+					ww[i] += ksi * (ww[target] * (1 + gamma) - ww[i])
+	
+	for each firm
+		qchl = ll - l;
+		qchw = ww - qw
+	lu = ll
+
+	for each firm
+		handle_labour_search_layoffs()
+
+handle_successful_attack():
+	now = min(theta * ll[target], chl[i])
+
+	ll[i] += now
+	chl[i] -= now
+
+	ll[target] -= now
+	if target is a firm then
+		chl[target] += now
+
+Firm::handle_labour_search_layoffs():
+	exit = max(0, -qchl)
+	if exit > aman[0] + aman[1] then
+		aman[2] = max(0, aman[2] - (exit - aman[0] - aman[1]))
+	if exit > aman[0] then
+		aman[1] = max(0, aman[1] - (exit - aman[0]))
+	if exit > 0 then
+		aman[0] = max(0, aman[0] - exit)
+
+labour_update():
+	for each firm
+		sack = min(aman[0], max(0, l + qchl - qplanl))
+		qchl -= sack
+		aman[0] -= sack
+		lu += sack
+	
+	// sum across firms
+	qdwind = (sum((l + qchl) * (qw + qchw)) / sum(l + qchl)) / (sum(l * qw) / sum(l)) - 1
+
+	for each firm
+		l += qchl
+		qdw = qchw/qw
+		qw += qchw
+
+	qchru = lu / (lu + gov.l + sum(firm.l)) - ru
+	ru += qchru
+
+Firm::planqrevise():
+	qplanq = min(qplanq, qfr(l))
+	qdq = qplanq/qq - 1
+	qq *= (1 + qdq)
+
+	for i = 0 to NSEC
+		qimq[i] = max(0, share * io[i] * qplanqsave + (optimsto[i] - imsto[i]) / (4 * tmimsto)
+	
+	for i = 0 to NSEC
+		imsto[i] = min(maximsto[i], imsto[i] + qimq[i] - share * io[i] * qq)
+	
+	qoptsu = max(0, qq * (qexpsu / (qexpsu + (optsto - sto) / (4 * tmsto))))
+
+export_market():
+	for each firm
+		adjust_foreign()
+
+	for each market
+		qpfor *= (1 + qdpfor)
+
+	for each firm
+		qsfor = qsufor * qpfor * (1 + rsubs)
+
+	qsubsfor = sum(qsufor * qpfor * rsubs)
+	qexport = sum(qsfor / (1 + rsubs))
+
+Firm::adjust_foreign():
+	if qpdom * (1 - txva2) > qpfor then
+		x -= x * (1/(4 * tmx)) * (qpdom * (1 - txva2) - qpfor)/qpfor
+	else
+		x += (1 - x) * (1/(4*tmx)) * (qpfor - qpdom * (1 - txva2)) / (qpdom * (1 - txva2))
+	// clamp x between 0 and 1
+
+	qsufor = x * qoptsu
+
+domestic_market():
+	market_entrance()
+	household.init()
+	market_confront()
+	compute_imports()
+	domestic_result()
+	external_sectors()
+	household_update()
+	indirect_taxes()
+
+market_entrance():
+	for each firm
+		qoptsudom = (1 - x) * qoptsu
+	
+	// sum across firms per market
+	for each market
+		qprelpdom = qpdom * (1 + qchtxva2) * sum(qoptsudom * (qexpp / qp)) / sum(qoptsudom)
+
+Household::init():
+	qtrans = (rtrans * qttax) + lu * rlu * wstx / (4 * sum(l))
+	qint = rih * wh/4 * nh
+
+	qtws = gov.l * gov.qw/4 + qinpay + sum(firm.l * firm.qw/4)
+	qwtax = (gov.l * gov.qw/4) * (txwg / (1 + txwg)) + (qinpay + sum(firm.l * firm.qw/4)) * txw / (1 + txw)
+	qti = (qtws - qwtax) + qint + qtrans + qtdiv
+	qitax = qti * txi1
+	qdi = (qti - qitax) / nh
+	qspsavreq = qsavhreq / nh
+
+market_confront():
+	for each market
+		if (qpdom > qpfor) then
+			imp += (1 - imp)/(4 * tmimp) * (qpdom * (1 - txva2) - qpfor)/qpfor
+		else
+			imp -= imp/(4 * tmimp) * (qpfor - qpdom * (1 - txva2))/(qpdom * (1 - txva2))
+		// clamp imp between 0 and 1
+
+		pt = (1 - imp) * qprelpdom + imp * qpfor / (1 - txva2)
+	
+	for each external
+		pt = qpdom * (1 + qdp)
+	
+	for i = 0 to NSEC
+		qpurch[i] = gkoff[i] * gov.l * gov.qw/4 * pt[i] * (wgref/(100 * gov.qw))
+	
+	repeat marketiter times
+		compute_expenditures()
+		compute_buying()
+		if last iteration then
+			for each market
+				price_adjust()
+
+Household::compute_expenditures():
+	qprelcpi = sum(qc) / sum(qc/pt)
+	qchdcpi = qprelcpi/qcpi - 1 - qdcpi
+
+	for each expenditure category except DUR and SAV
+		qspe = cva * pt
+	
+	swap = alfa3 * (qchri/4 - qchdcpi) + alfa4 * qchru
+	// clamp swap between -0.05 and 0.05
+
+	qspe[DUR] = max(0, (pt[DUR] * cva[DUR])/rhodur - (pt[DUR]/qp[DUR] * (1 - rhodur) * stodur) - qdi * swap
+	qspe[SAV] = (whra * qdi - wh) + qdi * swap
+
+	for each expenditure category
+		qsp = beta1 * qspe + (beta2 + ((beta3 * qprelcpi)/(qdi - qspsavreq))) * (qdi - qspsavreq - sum(qspe * beta1))
+		if expenditure category is not SAV then
+			qsp = max(0, qsp)
+	qsp[SAV] += qspsavreq
+
+compute_buying():
+	for each market
+		for i = 0 to NSEC
+			qbuy[i] = sum(qimq[i])
+
+	for i = 0 to NSEC
+		gov.qbuy[i] = qpurch[i]/pt[i]
+		hh.qbuy[i] = nh * qsp[i]/pt[i]
+
+		qinvtot = omegag[i] * gov.qinv[i] + omegabld[i] * qinvbld + omegain[i] * qinvin + omega[i] * sum(qinvlag)
+		bank.qbuy[i] = qinvtot / (pt[i] * (1 - txva2)/(1 - txva1))
+
+	// matrix inversion requires the whole matrix intact. Therefore io3 is constructed temporarily from the externals' ios
+	// sum across qbuy is total buying from the external
+	for each external
+		qq = invert_matrix(I - (io3 * (1 - imp)/(1 - x))) * sum(qbuy * (1 - imp)/(1 - x))
+		for i = 0 to NSEC
+			qbuy[i] = io[i] * qq
+	
+	// sum buying from each sector
+	for each sector
+		qtbuy = sum(qbuy)
+
+Market::price_adjust():
+	ch = ((1 - imp) * maxdp * pt)/(4 * (marketiter - 1))
+	if qtbuy * (1 - imp) < sum(qoptsudom) then
+		pt -= ch
+	else
+		pt += ch
+
+compute_imports():
+	qimport = 0
+
+	for each market
+		qtbuyfor1 = imp * qtbuy
+		qtbuydom = qtbuy - qtbuyfor1
+
+		qmaxtsudom = max(0, sum(qq + sto - minsto - qsufor))
+		qtbuydom = min(qtbuydom, qmaxtsudom)
+
+		qtbuyfor2 = qtbuy - (qtbuydom + qtbuyfor1)
+		qtbuyfor = qtbuyfor1 + qtbuyfor2
+
+		qimport += qtbuyfor * qpfor
+
+	for each external
+		qtbuyfor = imp * qtbuy
+		qtbuydom = qtbuy - qtbuyfor
+
+		qimport += qtbuyfor * ((1 - txva2) * qpdom * (1 + qdp))
+
+Household::household_update():
+	for each expenditure category except DUR and SAV
+		qc = qsp
+
+	stodur = pt[DUR]/qp[DUR] * stodur + qsp[DUR]
+	qc[DUR] = rhodur * stodur
+	stodur *= (1 - rhodur)
+
+	qsp[SAV] = qdi - sum(qsp) + qsp[SAV]
+	wh += qsp[SAV]
+	qsav = qsp[SAV] * nh
+
+	for i = 0 to NSEC
+		cva[i] = smooth[i] * cva[i] + (1 - smooth[i]) * qc[i]/pt[i]
+
+	whra = smooth[SAV] * whra + (1 - smooth[SAV]) * wh/qdi
+
+	for i = 0 to NSEC
+		qp[i] = pt[i]
+
+	oldqcpi = qcpi
+	qcpi = sum(qc) / sum(qc/qp)
+	qdcpi = (qcpi - oldqcpi)/oldqcpi
+
+indirect_taxes():
+	for each sector
+		qvatax = txva2 * (qpurch + nh * qsp)
+		if txva1 < 0 then
+			more = (qpdom * (1 - txva2))/(1 - txva1) * bank.qbuy
+			qvatax += txva1 * more
+
+	qvataximp = sum(qtbuyfor/qtbuy * qvatax)
+
+sto_system():
+	firm_sto()
+	for each firm
+		reference_inventory_levels()
+
+firm_sto():
+	for each firm
+		limsto = sto + qq - qsufor
+		lower = min(limsto, minsto)
+		upper = min(limsto, maxsto)
+
+	qsubsdom = 0
+
+	for each market
+		totchsto = min(sum(qq - qsufor) - qtsudom, sum(upper - sto))
+		qchtsto = totchsto
+		qwaste = sum(qq - qsufor) - qtsudom - totchsto
+
+		for each firm in market
+			if sto > upper then
+				ch = upper - sto
+			else
+				ch = lower - sto
+
+			sto += ch
+			qchsto = ch
+			totchsto -= ch
+
+		diff1 = sum(upper - sto)
+		diff2 = sum(lower - sto)
+		for each firm in market
+			if totchsto > 0 then
+				ch = (upper - sto)/diff1 * totchsto
+			else
+				ch = (lower - sto)/diff2 * totchsto
+
+			sto += ch
+			qchsto += ch
+
+			qsudom = qq - qsufor - qchsto
+			qsdom = qsudom * (1 + rsubs) * qpdom * (1 - txva2)
+
+	qsubsdom = qsubsdom + sum(qsudom * rsubs * qpdom * (1 - txva2))
+
+Firm::reference_inventory_levels():
+	j = relative_quarter + 1
+	curs = 4 * ((1 / (4 + j)) * (s * (1 + histds/4.0)^(j + 1.5) + cums * (1 + histds/4.0)^((j - 1)/2)))
+	curp = (1 / (4 + j)) * 4 * p * (1 + histdp/4.0)^(j + 1.5) + j * cump * (1 + histdp/4.0)^((j - 1)/2))
+
+	minsto = small * curs/curp
+	maxsto = big * curs/curp
+	optsto = minsto + beta * (maxsto - minsto)
+
+	for i = 0 to NSEC
+		minimsto[i] = imsmall * io[i] * share * curs/curp
+		maximsto[i] = imbig * io[i] * share * curs/curp
+		optimsto[i] = minimsto[i] + imbeta * (maximsto[i] - minimsto[i])
+
+Firm::finalqpqsqm():
+	qsu = qsufor + qsudom
+	qds = (qsfor + qsdom - qs)/qs
+	qs = qsfor + qsdom
+	qdp = ((qs/qsu)-qp)/qp
+	qp = qs/qsu
+	qdva = qq * (qp - sum(io * qpdom * (1 - txva2)) / qva - 1
+	qva *= (1 + qdva)
+	qsnet = qs - sum(qimq * qpdom * (1 - txva2))
+	qm = 1 - (l * qw/4)/qsnet
+
+Firm::quarterly_cum():
+	cuminv += qinvlag
+	cumq += qq
+	cumva += qva
+	cums += qs
+	cumsu += qsu
+	cumsnet += qsnet
+	cumws += l * qw/4
+	
+	j = relative_quarter + 1
+	cuml = ((j - 1) * cuml + l)/j
+
+	cumm = 1 - cumws/cumsnet
+	cump = cums/cumsu
+
+Firm::invfin():
+	qrev = qm * qsnet + (k2 * rik2/4) - (bw * rif/4)
+	
+	k1 = qinv + k1 * (1 + qdpk)
+	qdepr = rho * k1
+	k1 -= qdepr
+
+	k1book += qinv
+	qdeprbook = max(0, min(qrev, rhobook * k1book))
+	k1book -= qdeprbook
+
+	k3imed = sum(imsto * qpdom * (1 - txva2))
+	k3finish = sto * qp
+	k3 = k3imed + k3finish
+
+	qtax = txc * max(0, qrev - qdeprbook)
+	qdiv = rtd * qtax
+	qcash = qrev - (qtax + qdiv) + qs * rsubscash
+
+	qrr = 4 * (qrev - qdepr)/(k1 + k2 + k3)
+	qdeschk2 = rw * curs - k2
+
+	qdeschbw = max(0, 1 - elinv * (utref - qq/(qtop * wtix * (1 - res)))) * bw * (alfabw + betabw * (qdpk + (qrr - rif)/4))
+	qdeschbw = min(qdeschbw, redchbw * bw)	
+	qdeschbw *= check_bw((bw + qdeschbw)/(k1 + k2 + qdeschk2 + k3))
+
+	qinv = delay()
+	inveff = qtop * qp/k1
+
+Firm::check_bw(bw_ratio):
+	val = 1 - bw_ratio
+	if val > 0.3 then
+		return 1
+	else if val <= 0.1 then
+		return 0
+	else
+		return 0.0025 * (floor(100 * val + 0.5) - 10)^2
+
+Firm::delay():
+	delta = 1 / (1 + (4 * tminv)/3)
+
+	inv_delay[2] += qinvlag
+	inv_delay[1] += delta * inv_delay[2]
+	inv_delay[2] -= delta * inv_delay[2]
+	inv_delay[0] += delta * inv_delay[1]
+	inv_delay[1] -= delta * inv_delay[1]
+
+	ret = delta * inv_delay[0]
+
+	inv_delay[0] *= (1 - delta)
+
+	return ret
+
+Government::accounting():
+	j = relative_quarter + 1
+
+	qint = (dep * ridepg/4) - (bw * ribwg/4)
+	qintfor = (depfor * ridepgfor/4) - (bwfor * ribwgfor/4)
+
+	qws = l * qw/4
+	qsubs = qsubsfor + qsubsdom + qsubscash
+	qsp = qws + qsubs + qtrans + sum(qpurch)
+	qttax = qwtax + qitax + sum(qvatax) + qctax
+	qsurplus = qttax + qint + qintfor - qsp - qinv
+	qmprint = max(0, money * 0.25 * sum(s * ds)/sum(s))
+
+	posfor += qchposfor // policy option
+	depfor = max(0, pos)
+	bwfor = max(0, -posfor)
+
+	qchpos = qsurplus + qmprint - qchposfor
+	pos += qchpos
+	dep = max(0, pos)
+	bw = max(0, -pos)
+
+	cumwtax += qwtax
+	cumitax += qitax
+	cumvatax += sum(qvatax)
+	cumctax += qctax
+	cumws += qws
+	cuml = (l + cuml * (j - 1))/j
+	cumsubs += qsubs
+	cumtrans += qtrans
+	for i = 0 to NSEC
+		cumpurch[i] = qpurch[i]
+	cuminv += qinv
+	cumint += qint + qintfor
+	cummprint += qmprint
+
+	if last quarter in year
+		wtax = cumwtax
+		itax = cumitax
+		vatax = cumvatax
+		ctax = cumctax
+
+		dws = cumws/ws - 1
+		ws *= (1 + dws)
+
+		dw = cumws/(cuml * w) - 1
+		w *= (1 + dw)
+
+		subs = cumsubs
+		trans = cumtrans
+
+		for i = 0 to NSEC
+			purch[i] = cumpurch[i]
+
+		sp = ws + subs + trans + sum(purch)
+		inv = cuminv
+		intg = cumint
+		surplus = wtax + itax + vatax + ctax + intg - sp - inv
+		mprint = cummprint
+
+monetary_sector():
+	bank_transactions()
+	credit_market()
+	invfin_adjustments()
+
+Bank::bank_transactions():
+	rfpay = (ri - ribwfor)/maxridiff
+	// clamp rfpay between -lamda2 and lamda2
+
+	qfasspay = (fass + qexport)/(1 + 4 * tmfass * (1 - rfpay))
+	qchfass = qexport - qfasspay
+	fass += qchfass
+
+	qfdpay = (fd + qimport)/(1 + 4 * tmfd * (1 + rfpay))
+	qchfd = qimport - qfdpay
+	fd += qchfd
+
+	qchliqbfor = qfasspay + gov.qintfor - qfdpay - gov.qchposfor
+	liqbfor += qchliqbfor
+
+	qchliqb = qintf + qsav + gov.qchpos + qimport + gov.qchposfor - qintk2 - hh.qint - gov.qint - qexport - gov.qintfor
+
+Bank::credit_market():
+	qdemfund = max(0, -gov.qchpos) + sum(max(0, qdeschbw))
+	
+	qsupfund1 = (liqb + qchliqb + sum(qdeschk2) - rfund1 * (sum(bw) + gov.bw + max(0, -wh * nh)))/(1 + rfund1)
+	qsupfund2 = liqb + qchliqb + sum(qdeschk2) - rfund2 * (sum(k2 + qdeschk2) + gov.dep + max(0, wh * nh))
+	qsupfund = max(0, min(qsupfund1, qsupfund2))
+
+	qsavhreq = min(kappa1 * max(0, qdi * nh), max(0, qdemfund - qsupfund))
+
+	qredtbw = min(kappa2 * sum(max(0, qdeschbw)), max(0, qdemfund - qsupfund - qsavhreq))
+	for each firm
+		qchbw = qdeschbw - qredtbw * max(0, qdeschbw)/sum(max(0, qdeschbw))
+
+	qchri = lamda1 * (qdemfund - qsupfund)/(max(1, qdemfund))
+	// clamp qchri between -maxqchri and maxqchri
+
+	ri += qchri
+	// clamp ri between minri and maxri
+
+	rif = ri
+	rih = ri - mb
+	rik2 = ri - mb
+
+	ribwg = ri
+	ridepg = ri - mb
+	ribwgfor = ribwfor
+	ridepgfor = ridepfor
+
+invfin_adjustments():
+	oldinv = sum(qinvlag)
+
+	for each firm
+		bw += qchbw
+
+		qinvlag = max(0, qcash + qchbw - qdeschk2)
+		qchk2 = qcash + qchbw - qinvlag
+		k2 += qchk2
+
+		nw = k1 + k2 + k3 - bw
+		if nw < 0 then
+			bad += 1
+		if bad >= 6
+			nullify_firm()
+
+	if no firms left in a market then
+		exit simulation
+
+	qtchbw = sum(qchbw)
+	qtchinv = sum(qinvlag) - oldinv
+	qtchk2 = sum(qchk2)
+
+Bank::bank_update():
+	qchliqb += qtchk2 - qtchbw
+	liqb += qchliqb
+
+	assets = sum(bw) + fass + liqbfor + liqb
+	liabilities = sum(k2) + wh * nh + gov.pos + fd
+	nw = assets - liabilities
+
+	money = sum(k2) + gov.dep + wh * nh
+
+national_accounting():
+	// Fill first 10 values of qgnpcur and qgnpfix with sector production
+	for each market
+		qchtstocurf = sum(k3finish) - tstocurf
+		tstocurf += qchtstocurf
+
+		qchtstocurm = sum(sto * qpdom) - tstocurm
+		tstocurm += qchtstocurm
+
+		qgnpcur[id] = sum(qsnet) + qchtstocurf
+		qgnpfix[id] = pref * (sum(qq) - qwaste)
+
+	for each external
+		qgnpcur[id] = qva
+		qgnpfix[id] = pref * qq
+
+	// Indirect taxes
+	qgnpcur[10] = sum(qvatax) + sum(qchtstocurm) - sum(qchtstocurf) - qvataximp
+
+	// Subsidies
+	qgnpcur[11] = -qsubs - qsubscash
+
+	// Government wages
+	qgnpcur[12] = gov.qws
+
+	// Government purchases
+	qgnpcur[13] = sum(qpurch)
+
+	// Private Consumption
+	qgnpcur[14] = nh * sum(qsp) - qsav
+
+	// Investments made by the explicit model sectors
+	qgnpcur[15] = sum(qinvlag) - qtchinv
+
+	// Investments made by external sectors, exclusive of housing
+	qgnpcur[16] = qinvin
+
+	// Investments for residential construction
+	qgnpcur[17] = qinvbld
+
+	// Government investments
+	qgnpcur[18] = gov.qinv
+
+	// Inventory changes
+	qgnpcur[19] = sum(qchtstocurm)
+
+	// Exports
+	qgnpcur[20] = qexport
+
+	// Imports
+	qgnpcur[21] = -(qimport - qvataximp)
+
+
+	// Government wages, deflated to the government wage level of ther reference year
+	qgnpfix[10] = gov.l * wgref/4
+
+	// Government purchases
+	qgnpfix[11] =  sum(pref * qpurch / qpdom)
+
+	// Private consumption; sum over non-saving categories	
+	qgnpfix[12] = sum(pref * qsp * nh / qpdom)
+
+	// Investments made by the explicit model sectors
+	qgnpfix[13] = sum(pref * omega * (sum(qinvlag) - qtchinv))/(qpdom * (1 - txva2)/(1 - txva1))
+
+	// Investments made by the external sectors, exclusive of housing
+	qgnpfix[14] = sum(pref * omegain * qinvin)/(qpdom * (1 - txva2)/(1 - txva1))
+
+	// Investments for residential construction
+	qgnpfix[15] = sum(pref * omegabld * qinvbld)/(qpdom * (1 - txva2)/(1 - txva1))
+
+	// Government investments
+	qgnpfix[16] = sum(pref * omegag * gov.qinv)/(qpdom * (1 - txva2)/(1 - txva1))
+
+	// Inventory changes
+	qgnpfix[17] = sum(pref * qchtsto)
+
+	// Exports
+	qgnpfix[18] = sum(pref * sum(qsufor)) + sum(pref * x * qq)
+	// the first sum is across markets, the second sum is across externals
+	
+	// Imports
+	qgnpfix[19] = -sum(pref * qtbuyfor)
+
+
+	for i = 0 to length of gnpcur
+		cumgnpcur[i] += qgnpcur[i]
+	for i = 0 to length of gnpfix
+		cumgnpfix[i] += qgnpfix[i]
+	cumexport += qexport
+	cumimport += qimport
+
+	if last quarter in year
+		gnpcur = cumgnpcur
+		gnpfix = cumgnpfix
+		export = cumexport
+		import = cumimport
+
+Firm::yearly_update():
+	dq = cumq/q - 1;
+	q *= (1 + dq);
+	dp = cums/(cumsu * p) - 1;
+	p *= (1 + dp);
+	dw = cumws/(cuml * w) - 1;
+	w *= (1 + dw);
+	ds = cums/s - 1;
+	s *= (1 + ds);
+	dva = cumva/va - 1;
+	va *= (1 + dva);
+	snet = cumsnet;
+	chm = cumm - m;
+	m += chm;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+MOSES variables are categorised in the following C++ classes:
+	Bank
+	Firm
+	Government
+	Household
+	Labour
+	Moses
+	Sector
+		Market
+		External
+
+The Moses class stores instances of these classes. The Moses instance contains one Bank, Government, Household, and Labour instance. Additionally, it stores four Market and six External instances, representing the economic sectors. The Market and External classes inherit from the Sector class. In other words, they are types of Sector and share all Sector variables. The user specifies the number of simulated firms.
+
+Each class contains local variables that refer to one instance of that class. Any other variables in the pseudocode have limited scope. In other words, they are local ("temporary") in the functions they are used in. Some variables are equal for all firms, markets, or externals, but are duplicated into each class instance for technical reasons.
+
+Some terms recur frequently in variable naming:
+q    : quarterly
+cum  : cumulative
+t    : trial
+ch   : change
+d    : relative change
+min  : minimum
+max  : maximum
+opt  : optimum
+hist : historical
+exp  : expected
+im   : 
+dom  : domestic
+for  : foreign
+
+There are additionally indexing variables:
+DUR  : durables (sector 3)
+NDUR : non durables (all sectors except sector 3)
+SAV  : savings
+
+					Bank	
+============================================
+fass				The bank's holdings of foreign trade credits.
+fd					The sum of the bank's debts to foreign suppliers of Swedish imports.
+kappa1				A constant for the maximum fraction of households' disposable income that can be stipulated as a reduction in household borrowing (increased net savings) in case of excess demand on the credit market.
+kappa2				A constant for the maximum fractional reduction of firms' desired new borrowing in case of excess demand on the credit market.
+lamda1				A constant used to compute the change in the rate of interest effected by supply-demand conditions in credit_market().
+lamda2				A constant used to compute the change in the rate of interest effected by supply-demand conditions in credit_market().
+liqb				The bank's holdings of "liquidity", of an unspecified nature. Updated in bank_update().
+liqbfor				The bank's 
+maxqchri			
+maxri				
+maxridiff			
+mb					
+minri				
+money				
+nw					
+qbuy				
+qchliqb				
+qchri				
+qsupfund			
+qtchbw				
+qtchinv				
+qtchk2				
+rfund1				
+rfund2				
+ri					
+ribwfor				
+ribwg				
+ribwgfor			
+ridepfor			
+ridepg				
+ridepgfor			
+rif					
+rih					
+rik2				
+tmfass				
+tmfd				
+
+
+
+
+fass					The bank's holding of foreign trade credits.
+fd						The sum of the bank's debts to foreign suppliers of Swedish imports.
+kappa1					A constant giving the maximum fraction of household's disposable income that can be stipulated as a reduction in household borrowing (increased net savings) in case of escess demand on the credit market.
+kappa2					A constant giving the maximum fractional reduction of firms' desired new borrowing in case of excess demand on the credit market.
+lamda1					A constant used to compute the change in the rate of interest effected by supply-demand conditions in CREDIT MARKET.
+lamda2					A constant used to compute the change in the rate of interest effected by supply-demand conditions in CREDIT MARKET.
+liqb					The bank's holdings of "liquidity", of an unspecified nature. Updated in BANK UPDATE.
+liqbfor					The bank's current holdings of foreign "liquidity", of an unspecified nature. Updated in BANK TRANSACTIONS.
+maxqchri				A limit on the rate of change for the rate of interest; used in CREDIT MARKET.
+maxri					A ceiling on the rate-of-interest movements, used in CREDIT MARKET.
+maxridiff				The maximum difference between foreign and domestic rate of interest, which is allowed to have an impact on the rate of payment of foreign trade credits. Used in BANK TRANSACTIONS.
+mb						The prescribed differential between domestic borrowing and lending rates of interest.
+minri					A floor for the rate-of-interest movements, used in CREDIT MARKET.
+money					The stock of money in the economy, defined as total deposits in the bank. Computed in BANK UPDATE.
+nw						The net value of the bank, as the residual between assets and liabilities. Computed in BANK UPDATE.
+qbuy					A matrix giving total quarterly purchasing in volume terms by each sector from each sector (both explicit and external sectors). Computed in COMPUTE BUYING for each iteration on the domestic product market.
+qchliqb					The quarterly change in the bank's liquidity. Preliminarily computed in BANK TRANSACTIONS, and finally established in BANK UPDATE.
+qchri					Quarterly change in the base rate of interest. Computed in CREDIT MARKET.
+qsupfund				Availability of funds for new borrowing during one quarter, in concordance with prevailing monetary restrictions. Computed in CREDIT MARKET.
+qtchbw					One quarter's total new borrowing for all firms. Computed in INVFIN ADJUSTMENTS.
+qtchinv					
+qtchk2					
+rfund1					A fraction indicating the liquidity restriction on the bank as regards total lending. Used in CREDIT MARKET.
+rfund2					A fraction indicating the liquidity restriction on the bank as regards total deposits. Used in CREDIT MARKET.
+ri					The base rate of interest, in parallel with which all other domestic rates move. Updated in CREDIT MARKET.
+ribwfor					The exogenous foreign lending rate of interest.
+ribwg					The rate of interest on the government's domestic borrowing. Updated in CREDIT MARKET.
+ribwgfor					The rate of interest on the government's foreign borrowing. Updated in CREDIT MARKET.
+ridepfor					The exogenous foreign deposit rate of interest.
+ridepg					The rate of interest on the government's domestic deposits. Updated in CREDIT MARKET.
+ridepgfor					The rate of interest on the government's foreign deposits. Updated in CREDIT MARKET.
+rif					The rate of interest on firms' borrowing from the bank. Updated in CREDIT MARKET.
+rih					The rate of interest on household savings. Updated in CREDIT MARKET.
+rik2					The rate of interest on firms' deposits in the bank. Updated in CREDIT MARKET.
+tmfass					Average payment period for foreign trade credits; used in BANK TRANSACTIONS.
+tmfd					Average payment period for foreign trade debts; used in BANK TRANSACTIONS.
+
+					Firm
+============================================
+aman					For each firm, a three-component vector accommodating the two-quarter lag of layoffs. The first component holds the number of people that can be fired this quarter, etc.
+bad					Counts number of quarters during which NW < 0.
+big					For each firm, the fraction of current yearly sales that firms consider as maximum for their finished-goods inventories.
+bw					A firm's total borrowing. Updated in INVFIN ADJUSTMENTS.
+chm					For each firm, its change in profit margin from one year to another (a difference between fractions). Computed in YEARLY UPDATE.
+cuminv					For each firm, a cumulation over the year of its investments. Updated in QUARTERLY CUM.
+cuml					For each firm, a cumulation over the year of the number of employed. Updated in QUARTERLY CUM.
+cumm					For each firm, a cumulation over the year of its profit margin. Updated in QUARTERLY CUM.
+cump					For each firm, its cumulated sales price within a year. Computed in QUARTERLY CUM.
+cumq					For each firm, a cumulation over the year of its production volume. Updated in QUARTERLY CUM.
+cums					For each firm, a cumulation over the year of its sales value. Updated in QUARTERLY CUM.
+cumsnet					For each firm, a cumulation over the year of its net sales, less purchases of input materials. Updated in QUARTERLY CUM.
+cumsu					For each firm, a cumulation over the year of its sales volume. Updated in QUARTERLY CUM.
+cumva					For each firm, a cumulation over the year of its value added. Updated in QUARTERLY CUM.
+cumws					For each firm, a cumulation over the year of its wage sum. Updated in QUARTERLY CUM.
+dp					For each firm, its yearly change in sales price (a fraction). Computed in YEARLY UPDATE.
+dq					For each firm, its yearly change in production volume (a fraction). Computed in YEARLY UPDATE.
+ds					For each firm, its yearly change in sales value (a fraction). Computed in YEARLY UPDATE.
+dva					For each firm, its yearly change in value added (a fraction). Computed in YEARLY UPDATE.
+dw					For each firm, its yearly wage change (a fraction). Computed in YEARLY UPDATE.
+expdp					Each firm's expected change in sales price for a year (a fraction). Computed in YEARLY EXP.
+expds					Each firm's expected change in sales for a year (a fraction). Computed in YEARLY EXP.
+expdw					Each firm's expected wage change for a year (a fraction). Computed in YEARLY EXP.
+histdp					For each firm, a time-smoothed average of its experienced yearly price increase. Updated in YEARLY EXP.
+histdpdev					For each firm, a time-smoothed average of the difference between actual and expected yearly price increase. Updated in YEARLY EXP.
+histdpdev2					For each firm, a time-smoothed average of the square of the difference between actual and expected yearly price increase. Updated in YEARLY EXP.
+histds					For each firm, a time-smoothed average of its experienced yearly sales increase. Updated in YEARLY EXP.
+histdsdev					For each firm, a time-smoothed average of the difference between actual and expected yearly sales increase. Updated in YEARLY EXP.
+histdsdev2					For each firm, a time-smoothed average of the square of the difference between actual and expected yearly sales increase. Updated in YEARLY EXP.
+histdw								For each firm, a time-smoothed average of its experienced yearly increase in wage level. Updated in YEARLY EXP.		
+histdwdev					For each firm, a time-smoothed average of the difference between actual and expected yearly increase in wage level. Updated in YEARLY EXP.
+histdwdev2					For each firm, a time-smoothed average of the square of the difference between actual and expected yearly increase in wage level. Updated in YEARLY EXP.
+id					
+imbig					That fraction of one year's use of a certain input good, which a firm considers as the maximum inventory level for that good. Individual for each firm.
+imsmall					That fraction of one year's use of a certain input good, which a firm considers as the minimum inventory level for that good. Individual for all firms.
+imsto					For each firm, the inventory level for each kind of input good. Updated in PLANQREVISE.
+inv_delay					
+inveff					For each firm, its investment efficiency (increase in quarterly production value, divided by investment). Computed in INVFIN.
+k1					For each firm, the replacement value of its production equipment. Updated in INVFIN.
+k1book					For each firm, the replacement value of its production equipment. Updated in INVFIN.
+k2					For each firm, its current assets. Updated in INVFIN ADJUSTMENTS.
+k3					For each firm, the value of its total inventory: The sum of K3IMED and K3FINISH.
+k3finish					For each firm, the value of its finished-goods inventory. Computed in INVFIN.
+l					each firm, its labour force. Updated in LUUPDATE (retirements) and in LABOUR UPDATE (other changes).
+m					each firm, its yearly profit margin (a fraction). Computed in YEARLY UPDATE.
+market_id					
+maximsto					For each firm, its "maximum" level for inventories of each kind of input good (volume terms). Computation is described within block STOSYSTEM.
+maxsto					For each firm, its "maximum" inventory level (volume terms). Computation is described within block STOSYSTEM.
+mhist					For each firm, an average of past profit margins (a fraction). Updated in YEARLY TARG.
+minimsto					For each firm, its "minimum" level for inventories of each kind of input good (volume terms). Computation is described within block STOSYSTEM.
+minsto					For each firm, its "minimum" inventory level (volume terms). Computation is described within block STOSYSTEM.
+nw					For each firm, its net value as the residual between total assets and borrowing. Computed in INVFIN ADJUSTMENTS.
+optimsto					For each firm, its optimum inventory level for each kind of input good (volume terms). Computed in STOSYSTEM.
+optsto					For each firm, the "optimum" level for its finished-goods inventory (volume terms). Computation is described within block STOSYSTEM.
+p					each firm, its yearly average sales price. Computed in YEARLY UPDATE. This price includes any sales-based subsidies but not value added tax.
+q					each firm, its total production for a year (volume). Updated in YEARLY UPDATE.
+qcash					For each variable, the net cash inflow during one quarter, before new borrowing and payments of investments. Computed in INVFIN.
+qchbw					For each firm, its quarterly change in borrowing, computed in CREDIT MARKET.
+qchk2					For each firm, its quarterly change in current assets. Computed in INVFIN ADJUSTMENTS.
+qchl					For each firm, its quarterly labour force changes due to labour market interactions (retirements are not included). Computed in LABOUR SEARCH; updated in LABOUR UPDATE if layoffs occur.
+qchw					For each firm, its quarterly wage change in absolute terms. Computed in LABOUR SEARCH.
+qdepr					For each firm, the quarterly depreciation of its production equipment at replacement value. Help variable in INVFIN.
+qdeprbook					For each firm, the quarterly depreciation of its production equipment at book value (for taxation purposes). Help variable in INVFIN.
+qdeschbw					For each firm, its desired new borrowing for one quarter. Computed in INVFIN based on current real rate of return and on the capacity utilization within the firm.
+qdeschk2					For each firm, its desired change in current assets, to make these a certain proportion of sales. Computed in INVFIN.
+qdiv					For each firm, its quarterly payments of dividends to the household aggregate. Computed in INVFIN.
+qdp					For each firm, its quarterly increase in sales price (a fraction). Computed in FINALQPQSQM.
+qds					For each firm, its quarterly increase in sales value (a fraction). Computed in FINALQPQSQM.
+qdva					For each firm, its quarterly increase in value added in current prices (a fraction). Computed in FINALQPQSQM.
+qdw					For each firm, its quarterly wage increase (a fraction). Computed in LABOUR UPDATE.
+qexpdp					For each firm, its expectation on price increase for the next quarter (a fraction). Help variable used in QUARTERLY EXP.
+qexpp					For each firm, its expected sales price for the next quarter. Computed in QUARTERLY EXP.
+qexps					For each firm, its expected sales value for the next quarter. Computed in QUARTERLY EXP.
+qexpsu					For each firm, its expected sales volume for the next quarter. Computed in INITPRODPLAN.
+qexpw					For each firm, its expected wage level for the next quarter (expressed on a yearly basis). Computed in QUARTERLY EXP.
+qimq					For each firm and each kind of input good, the quantity (volume terms) that the firm buys of that good during one quarter. Computed in INTERMEDIATE PRODUCTS.
+qinv					For each firm, its quarterly installed investments (value terms). Computed in INVFIN.
+qinvlag					For each firm, the money allocated for investments during one quarter, entering as demand on the product market next quarter. Computed in INVFIN ADJUSTMENTS.
+qm					For each firm, its profit margin during a quarter (a fraction). Calculated in FINALQPQSQM.
+qoptsu					For each firm, its optimum sold volume during a quarter. Computed in PLANQREVISE.
+qoptsudom					Optimum sold volume on the domestic market (units per quarter). Computed for each firm in MARKET ENTRANCE.
+qp					For each firm, its sales price during a quarter (an average between foreign and domestic price). Updated in FINALQPQSQM. This price includes any sales-based subsidies, but not value added tax.
+qplanl					For each firm, its planned labour force for a quarter. Computed in TARGET SEARCH.
+qplanq					For each firm, its planned production volume during a quarter. Computed in INITPRODPLAN; revised in TARGET SEARCH and in PLANQREVISE.
+qplanqsave					
+qq					Production for a firm (units per quarter). Computed in PLANQREVISE.
+qrev					For each firm, its quarterly gross revenue: Sales less wages and purchases of input materials, plus and minus interests. Help variable in INVFIN.
+qrr					For each firm, its rate of return before taxes (a fraction on a yearly basis). Computed in INVFIN each quarter.
+qs					For each firm, its sales value during one quarter. Computed in FINALQPQSQM.
+qsdom					For each firm, its domestic sales value during one quarter. Computed in FIRMSTO.
+qsfor					For each firm, its foreign sales value during one quarter. Computed in EXPORT MARKETS.
+qsnet					For each firm, its net sales value (less purchases of input goods) during one quarter. Computed in FINALQPQSQM.
+qsu					For each firm, its sales volume during one quarter. Computed in FINALQPQSQM.
+qsudom					
+qsufor					
+qtargm					
+qtax					
+qtop					
+qva					
+qw					
+res					
+rw					
+s					
+share					
+small					
+snet					
+sto					
+targm					
+tec					
+va					
+w					
+x					
+
+					Government
+============================================
+bw
+bwfor
+ctax
+cumctax
+cumint
+cuminv
+cumitax
+cuml
+cummprint
+cumpurch
+cumsubs
+cumtrans
+cumvatax
+cumws
+cumwtax
+dep
+depfor
+gkoff
+intg
+inv
+itax
+l
+mprint
+omega
+omegabld
+omegag
+omegain
+pos
+posfor
+purch
+qbuy
+qchpos
+qchposfor
+qchtxva1
+qchtxva2
+qctax
+qint
+qintfor
+qinv
+qinvbld
+qinvin
+qitax
+qmprint
+qpurch
+qrealchl
+qsp
+qsubs
+qsubscash
+qsubsdom
+qsubsfor
+qsurplus
+qtrans
+qttax
+qvatax
+qvataximp
+qw
+qws
+qwtax
+rsubscash
+sp
+subs
+surplus
+trans
+txc
+txi1
+txva1
+txva2
+txw
+txwg
+vatax
+w
+wgref
+ws
+wtax
+
+					Household
+============================================
+alfa3
+alfa4
+beta1
+beta2
+beta3
+cva
+nh
+qbuy
+qc
+qcpi
+qdcpi
+qdi
+qinpay
+qint
+qp
+qsav
+qsavhreq
+qsp
+qspsavreq
+qtdiv
+qti
+rhodur
+rtrans
+smooth
+stodur
+wh
+whra
+
+					Labour
+============================================
+entry
+gamma
+ksi
+lf
+lu
+qchru
+qdwind
+ret
+rlu
+ru
+skrepa
+theta
+
+					Moses
+============================================
+bank
+cumexport
+cumgnpcur
+cumgnpfix
+cumimport
+export
+externals
+firms
+gnpcur
+gnpfix
+gov
+hh
+import
+lab
+marketiter
+markets
+niter
+qexport
+qimport
+qintf
+qintk2
+quarter
+relative_quarter
+year
+
+					Sector
+============================================
+id
+imp
+io
+pref
+qbuy
+qdpdom
+qexppim
+qpdom
+qpfor
+qtbuy
+qtbuydom
+qtbuyfor
+tmimp
+
+					Market
+============================================
+maxdp
+mtec
+qchtsto
+qchtstocurf
+qchtstocurm
+qdmtec
+qdpfor
+qprelpdom
+qtsudom
+qwaste
+rsubs
+tminv
+tmx
+tstocurf
+tstocurm
+
+					External
+============================================
+qdp
+qq
+qva
+x
+
+https://alphabetizer.flap.tv/
+
+ALFABW	Constant used in INVFIN to determine firms' desired change in borrowing.
+ALFA3	Constant used in COMPUTE EXPENDITURES to determine the short-term swap between savings and expenditures on durables.
+ALFA4	Constant used in COMPUTE EXPENDITURES to determine the short-term swap between savings and expenditures on durables.
+AMAN	For each firm, a three-component vector accommodating the two-quarter lag of layoffs. The first component holds the number of people that can be fired this quarter, etc.
+BAD			Counts number of quarters during which NW < 0.
+BETA	Constants used to compute optimum finished-goods inventory levels in relation to MINSTO and MAXSTO. Same for all firms within a market.
+BETABW	Constant used in INVFIN to determine firms' desired change in borrowing.
+BETA1	Constants used in COMPUTE EXPENDITURES to adjust household expenditures in different categories to the income constraint. All BETA1 ≥ 0.
+BETA2	Constants used in COMPUTE EXPENDITURES to adjust household expenditures in different categories to the income constraint. SUM(BETA2) = 1.
+BETA3	Constants used in COMPUTE EXPENDITURES to adjust household expenditures in different categories to the income constraint. SUM(BETA3) = 0.
+BIG	For each firm, the fraction of current yearly sales that firms consider as maximum for their finished-goods inventories.
+BWAΔHECK	Subroutine checking each firm's (net worth)/total assets.
+BW			A firm's total borrowing. Updated in INVFIN ADJUSTMENTS.
+BWG	Current level of the government's domestic borrowing. Updated in GOVERNMENT ACCOUNTING.
+BWGFOR	Current level of the government's borrowing abroad. Updated in GOVERNMENT ACCOUNTING.
+CHL	Each firm's desired change in labour force. A help variable used within LABOUR SEARCH to accommodate market interactions.
+CHM	For each firm, its change in profit margin from one year to another (a difference between fractions). Computed in YEARLY UPDATE.
+CTAX	Aggregate corporate taxes for one year. Computed in GOVERNMENT ACCOUNTING.
+CUMCTAX	Aggregate corporate taxes, cumulated over the year in GOVERNMENT ACCOUNTING.
+CUMEXPORT	Aggregate export value, cumulated over the year in NATIONAL ACCOUNTING.
+CUMGNPCUR	The components of the gross national product in current prices, cumulated over the year in NATIONAL ACCOUNTING.
+CUMGNPFIX	The components of the gross national product in fixed prices, cumulated over the year in NATIONAL ACCOUNTING.
+CUMIMPORT	Aggregate import value, cumulated over the year in NATIONAL ACCOUNTING.
+CUMINTG	Government net receipts of interest, cumulated over the year in GOVERNMENT ACCOUNTING.
+CUMINV	For each firm, a cumulation over the year of its investments. Updated in QUARTERLY CUM.
+CUMINVG	Government investments, cumulated over the year in GOVERNMENT ACCOUNTING.
+CUMITAX	Aggregate income taxes, cumulated over the year in GOVERNMENT ACCOUNTING.
+CUML	For each firm, a cumulation over the year of the number of employed. Updated in QUARTERLY CUM.
+CUMLG	For the government, a cumulation over the year of the number of employed. Updated in GOVERNMENT ACCOUNTING.
+CUMM	For each firm, a cumulation over the year of its profit margin. Updated in QUARTERLY CUM.
+CUMMPRINT	Changes in the monetary base, cumulated over the year in GOVERNMENT ACCOUNTING.
+CUMP	For each firm, its cumulated sales price within a year. Computed in QUARTERLY CUM.
+CUMPURCHG	The government's purchases of goods and services (less investments), cumulated over the year in GOVERNMENT ACCOUNTING.
+CUMQ	For each firm, a cumulation over the year of its production volume. Updated in QUARTERLY CUM.
+CUMS	For each firm, a cumulation over the year of its sales value. Updated in QUARTERLY CUM.
+CUMSNET	For each firm, a cumulation over the year of its net sales, less purchases of input materials. Updated in QUARTERLY CUM.
+CUMSU	For each firm, a cumulation over the year of its sales volume. Updated in QUARTERLY CUM.
+CUMSUBS	The government's subsidies of the industry, cumulated over the year in GOVERNMENT ACCOUNTING.
+CUMTRANS	Aggregate government transfer payments to households, cumulated over the year in GOVERNMENT ACCOUNTING.
+CUMVA	For each firm, a cumulation over the year of its value added. Updated in QUARTERLY CUM.
+CUMVATAX	Aggregate value added tax, cumulated over the year in GOVERNMENT ACCOUNTING.
+CUMW	For each firm, its cumulated wage level within a year. Computed in QUARTERLY CUM.
+CUMWS	For each firm, a cumulation over the year of its wage sum. Updated in QUARTERLY CUM.
+CUMWSG	Government wage sum, cumulated over the year in GOVERNMENT ACCOUNTING.
+CUMWTAX	Aggregate payroll taxes, cumulated over the year in GOVERNMENT ACCOUNTING.
+CURS	Each firm's estimate of its current sales per year, compatible with longer-term trends. Computation is described in STOSYSTEM.
+CURP	Each firm's estimate of its current sales price, compatible with longer-term trends. Computation is described in STOSYSTEM.
+CVA	A household's "addicted" consumption volume in each expenditure category (units per quarter). Updated in HOUSEHOLD UPDATE.
+DEPG	Current level of the Government's domestic bank deposits. Updated in GOVERNMENT ACCOUNTING.
+DEPGFOR	Current level of the Government's foreign bank deposits. Updated in GOVERNMENT ACCOUNTING.
+DISTR	A help variable used in FIRMSTO to distribute inventory adjustments among firms.
+DP	For each firm, its yearly change in sales price (a fraction). Computed in YEARLY UPDATE.
+DQ	For each firm, its yearly change in production volume (a fraction). Computed in YEARLY UPDATE.
+DS	For each firm, its yearly change in sales value (a fraction). Computed in YEARLY UPDATE.
+DUR	A vector index, giving "Consumer durables" /"Industrial investment goods" data from a vector or a matrix.
+DVA	For each firm, its yearly change in value added (a fraction). Computed in YEARLY UPDATE.
+DW	For each firm, its yearly wage change (a fraction). Computed in YEARLY UPDATE.
+DWG	Yearly rate of change in the government wage level. Computed in GOVERNMENT ACCOUNTING.
+DWSG	Yearly rate of change in the government wage sum. Computed in GOVERNMENT ACCOUNTING.
+ELINV	An elasticity, reducing firms' desired new borrowing (and hence investments) whenever capacity utilization is low. Used in INVFIN.
+ENTRY	A parameter regulating the inflow of new persons to the labour market (quarterly fraction of the total labour force). Exogenous and constant.
+EPS	A constant forcing firms to sharpen their profit-margin targets as compared with historical data.
+EXIT	For each firm, discrepancy between actual and planned labour force (after market interactions). Help variable used in LABOUR SEARCH to accommodate AMAN layoff lag.
+EXPDP	Each firm's expected change in sales price for a year (a fraction). Computed in YEARLY EXP.
+EXPDS	Each firm's expected change in sales for a year (a fraction). Computed in YEARLY EXP.
+EXPDW	Each firm's expected wage change for a year (a fraction). Computed in YEARLY EXP.
+EXPIDP	Each firm's "internally" expected change in sales price for a year (a fraction). Updated in YEARLY EXP.
+EXPIDS	Each firm's "internally" expected change in sales for a year (a fraction). Updated in YEARLY EXP.
+EXPIDW	Each firm's "internally" expected change in wage for a year (a fraction). Updated in YEARLY EXP.
+EXPORT	Aggregate export value for one year. Computed in NATIONAL ACCOUNTING.
+EXPXDP	In each market, the "externally" expected change in sales price for a year (a fraction). Entered exogenously.
+EXPXDS	In each market, the "externally" expected change in sales for a year (a fraction). Entered exogenously.
+EXPXDW	In each market, the "externally" expected change in wage for a year (a fraction). Entered exogenously.
+E1	A constant used in YEARLY EXP to form "internal" expectations on prices, sales, and wages.
+E2	A constant used in YEARLY EXP to form "internal" expectations on prices, sales, and wages.
+FASS	The Bank's holding of foreign trade credits (claims on foreign importers). Updated in BANK TRANSACTIONS.
+FD	The sum of the Bank's debts to foreign suppliers of Swedish imports. Updated in BANK TRANSACTIONS.
+FIP	A constant describing how firms trade off only just experienced price change against longer-term expectations. Used in QUARTERLY EXP.
+FIS	A constant describing how firms trade off only just experienced sales value change against longer-term expectations. Used in QUARTERLY EXP.
+FIW	A constant describing how firms trade off only just experienced wage change against longer-term expectations. Used in QUARTERLY EXP.
+G			Indexing variable, extracting data that relate to government.
+GAMMA	A constant telling how big wage increase is needed for a person that he should leave this job for a new one. Used in LABOUR SEARCH.
+GKOFF	Government purchasing (less investments) in each sector, as a fraction of government wage sum.
+GNPCUR	Gross national product for one year (current prices), with components as indicated in NATIONAL ACCOUNTING.
+GNPFIX	Gross national product for one year (fixed prices), with components as indicated in NATIONAL ACCOUNTING.
+HH	Indexing variable, extracting from vectors and matrices data that relate to households.
+HISTDP	For each firm, a time-smoothed average of its experienced yearly price increase. Updated in YEARLY EXP.
+HISTDPDEV	For each firm, a time-smoothed average of the difference between actual and expected yearly price increase. Updated in YEARLY EXP.
+HISTDPDEV2	For each firm, a time-smoothed average of the square of the difference between actual and expected yearly price increase. Updated in YEARLY EXP.
+HISTDS	For each firm, a time-smoothed average of its experienced yearly sales increase. Updated in YEARLY EXP.
+HISTDSDEV	For each firm, a time-smoothed average of the difference between actual and expected yearly sales increase. Updated in YEARLY EXP.
+HISTDSDEV2	For each firm, a time-smoothed average of the square of the difference between actual and expected yearly sales increase. Updated in YEARLY EXP.
+HISTDW	For each firm, a time-smoothed average of its experienced yearly increase in wage level. Updated in YEARLY EXP.
+HISTDWDEV	For each firm, a time-smoothed average of the difference between actual and expected yearly increase in wage level. Updated in YEARLY EXP.
+HISTDWDEV2	For each firm, a time-smoothed average of the square of the difference between actual and expected yearly increase in wage level. Updated in YEARLY EXP.
+IMBETA	Constant used to compute optimum input-goods inventory level in relation to MINIMSTO and MAXIMSTO. Same for all firms.
+IMBIG	That fraction of one year's use of a certain input good, which a firm considers as the maximum inventory level for that good. Individual for each firm.
+IMP	Import share for each explicit and external sector. Updated in MARKET CONFRONT (explicit sectors only).
+IMPORT	Aggregate import value for one year. Computed in NATIONAL ACCOUNTING.
+IMSMALL	That fraction of one year's use of a certain input good, which a firm considers as the minimum inventory level for that good. Individual for all firms.
+IMSTO	For each firm, the inventory level for each kind of input good. Updated in PLANQREVISE.
+IN	Indexing variable, extracting external-sectors data from any vector or matrix.
+INTG	Net interest receipts by the government for one year. Updated in GOVERNMENT ACCOUNTING.
+INV	Indexing variable, extracting from vectors and matrices data that relate to investments.
+INVEFF	For each firm, its investment efficiency (increase in quarterly production value, divided by investment). Computed in INVFIN.
+INVG	Government investments for one year, updated in GOVERNMENT ACCOUNTING.
+IO			∑_(I=1)^11▒〖IO〗_IJ =∑_(I=1)^10▒〖IO〗_IJ +VALUE ADDED=1
+Market-input-output-coefficients. The amount of each kind of input material that a firm needs for its production. Same for all firms in a market; expressed as volume fractions of production. Assumed to be constant.
+IO2	The amount of each kind of input material from explicit model sectors that is needed for production in each of the external sectors. Expressed as volume fractions of production and assumed constant.
+IO3	The amount of each kind of input material from external sectors that is needed for production in each of the external sectors.
+IOTA	A constant used by firms to form their initial wage offer in LABOUR SEARCH.
+ITAX	Aggregate income taxes for one year, updated in GOVERNMENT ACCOUNTING.
+J			Counts the quarters within the year.
+KAPPA1	A constant giving the maximum fraction of household's disposable income that can be stipulated as a reduction in household borrowing (increased net savings) in case of excess demand on the credit market.
+KAPPA2	A constant giving the maximum fractional reduction of firms' desired new borrowing in case of excess demand on the credit market.
+KSI	A constant, used in LABOUR SEARCH, which tells by how much a firm raises its own wage level after it has performed an unsuccessful attack.
+K1	For each firm, the replacement value of its production equipment. Updated in INVFIN.
+K1BOOK	For each firm, the replacement value of its production equipment. Updated in INVFIN.
+K2	For each firm, its current assets. Updated in INVFIN ADJUSTMENTS.
+K3	For each firm, the value of its total inventory: The sum of K3IMED and K3FINISH.
+K3IMED	For each firm, the value of its input-goods inventory. Computed in INVFIN.
+K3FINISH	For each firm, the value of its finished-goods inventory. Computed in INVFIN.
+L	For each firm, its labour force. Updated in LUUPDATE (retirements) and in LABOUR UPDATE (other changes).
+LAMDA1	A constant used to compute the change in the rate of interest effected by supply-demand conditions in CREDIT MARKET.
+LAMDA2	A constant that indicates how the foreign/domestic differential in the rate of interest impacts on average payment times for foreign trade credits. Used in BANK TRANSACTIONS.
+LAYOFF	For each firm, discrepancy between actual and planned labour force (before market interactions). Help variable ng in TARGET SEARCH to accommodate AMAN layoff lag.
+LF			Total labour force in the economy. Updated in LUUPDATE.
+LG			Government labour force. Updated in GLABOUR.
+LIMSTO	For each firm, the inventory level that it would end up with at zero domestic sales. A help variable used within STOSYSTEM.
+LIQB	The bank's holdings of "liquidity", of an unspecified nature. Updated in BANK UPDATE.
+LIQBFOR	The bank's current holdings of foreign "liquidity", of an unspecified nature. Updated in BANK TRANSACTIONS.
+LL	Each firm's labour force. A help variable used within LABOUR SEARCH to accommodate the market interactions.
+LOSS	A constant, telling how much of firms' investments that are directed to the structural slack.
+LOWER	For each firm, the minimum inventory level it could ever end up with. A help variable used within STOSYSTEM.
+LU	Number of people unemployed. Updated in LUUPDATE and at various places within the block LABOUR MARKET.
+M	For each firm, its yearly profit margin (a fraction). Computed in YEARLY UPDATE.
+MARKETITER	Number of iterations on the domestic product market. Used in MARKET CONFRONT.
+MAXDP	A fraction which determines the maximum yearly deviation in domestic prices from what firms expect. Used in ADJUST PRICES to accommodate supply-demand interactions.
+MAXIMSTO	For each firm, its "maximum" level for inventories of each kind of input good (volume terms). Computation is described within block STOSYSTEM.
+MAXQCHRI	A limit on the rate of change for the rate of interest; used in CREDIT MARKET.
+MAXRI	A ceiling on the rate-of-interest movements, used in CREDIT MARKET.
+MAXRIDIFF	The maximum difference between foreign and domestic rate of interest, which is allowed to have an impact on the rate of payment of foreign trade credits. Used in BANK TRANSACTIONS.
+MAXSTO	For each firm, its "maximum" inventory level (volume terms). Computation is described within block STOSYSTEM.
+MB	The prescribed differential between domestic borrowing and lending rates of interest.
+MHIST	For each firm, an average of past profit margins (a fraction). Updated in YEARLY TARG.
+MINIMSTO	For each firm, its "minimum" level for inventories of each kind of input good (volume terms). Computation is described within block STOSYSTEM.
+MINRI	A floor for the rate-of-interest movements, used in CREDIT MARKET.
+MINSTO	For each firm, its "minimum" inventory level (volume terms). Computation is described within block STOSYSTEM.
+MKT			Index variable, extracting data that apply to explicit markets.
+MONEY	The stock of money in the economy, defined as total deposits in the bank. Computed in BANK UPDATE.
+MPRINT	One year's change in the monetary base (absolute value). Computed in GOVERNMENT ACCOUNTING.
+MTEC	On each market, technology factor of modern equipment (potentially produced units per person and quarter). Updated in PRODFRONT.
+NDUR	Index variable, extracting from household "expenditure category" vectors data that apply to non-durable consumption categories.
+NH	Number of households – a constant.
+NITER	Number of iterations on the labour market each quarter. Used in LABOUR SEARCH.
+NOW	Number of people hired in one successful attack on the labour market. A help variable used within CONFRONT.
+NTOT			The current number of firms in the simulation.
+NW	For each firm, its net value as the residual between total assets and borrowing. Computed in INVFIN ADJUSTMENTS.
+NWB	The net value of the bank, as the residual between assets and liabilities. Computed in BANK UPDATE.
+OMEGA	A distribution vector indicating how firms' outlays for investments are allocated on purchases from different model sectors. Assumed to be equal for all firms.
+OMEGABLD	A distribution vector indicating how investments in residential construction result in purchases from different model sectors.
+OMEGAG	A distribution vector indicating how government investments result in purchasing from different model sectors.
+OMEGAIN	A distribution vector indicating how investments from external sectors (less residential construction) result in purchases from different model sectors.
+OPTIMSTO	For each firm, its optimum inventory level for each kind of input good (volume terms). Computed in STOSYSTEM.
+OPTSTO	For each firm, the "optimum" level for its finished-goods inventory (volume terms). Computation is described within block STOSYSTEM.
+ORD	Vector, telling in which sequence firms are allowed to make attacks on the labour market (big relative recruitment plan goes first).
+P	For each firm, its yearly average sales price. Computed in YEARLY UPDATE. This price includes any sales-based subsidies but not value added tax.
+POSG	The government's net position in the bank. Updated in GOVERNMENT ACCOUNTING.
+POSGFOR	The government's net foreign deposit/borrowing position. Updated in GOVERNMENT ACCOUNTING.
+PREF	Domestic prices for each model sector from a reference year. Used in NATIONAL ACCOUNTING.
+PRIMCHSTO	A help variable used in FIRMSTO to distribute inventory adjustments among firms.
+PROPCHSTO	A help variable used in FIRMSTO to distribute inventory adjustments among firms.
+PT	On each market, the offering price in one iteration. First computed in MARKET CONFRONT; later updated in ADJUST PRICES.
+PURCHG	For each model sector, the government's purchases of goods and services (less investments) for one year. Computed in GOVERNMENT ACCOUNTING.
+Q	For each firm, its total production for a year (volume). Updated in YEARLY UPDATE.
+QBUY	A matrix giving total quarterly purchasing in volume terms by each sector from each sector (both explicit and external sectors). Computed in COMPUTE BUYING for each iteration on the domestic product market.
+QC	A household's consumption in each of the non-savings expenditure categories (value per quarter). Computed in HOUSEHOLD UPDATE.
+QCASH	For each variable, the net cash inflow during one quarter, before new borrowing and payments of investments. Computed in INVFIN.
+QCHBW	For each firm, its quarterly change in borrowing, computed in CREDIT MARKET.
+QCHDCPI	Attempted rise in consumer price index between quarters (a fraction). Computed in COMPUTE EXPENDITURES each time households meet an offering price vector PT.
+QCHFASS	The quarterly change in the aggregate stock of trade credits to foreigners. Computed in BANK TRANSACTIONS.
+QCHFD	The quarterly change in the aggregate stock of trade debts to foreigners. Computed in BANK TRANSACTIONS.
+QCHK2	For each firm, its quarterly change in current assets. Computed in INVFIN ADJUSTMENTS.
+QCHL	For each firm, its quarterly labour force changes due to labour market interactions (retirements are not included). Computed in LABOUR SEARCH; updated in LABOUR UPDATE if layoffs occur.
+QCHLG	Number of new persons in government sector labour force each quarter (including replacements for retirements).
+QCHLIQB	The quarterly change in the bank's liquidity. Preliminarily computed in BANK TRANSACTIONS, and finally established in BANK UPDATE.
+QCHLIQBFOR	The quarterly change in the bank's foreign liquidity. Computed in BANK TRANSACTIONS.
+QCHPOSG	The quarterly change in the government's net position in the bank. Computed in GOVERNMENT ACCOUNTING.
+QCHPOSGFOR	The quarterly change in the government's net foreign deposit/borrowing position. Entered in GOVERNMENT ACCOUNTING as a policy option.
+QCHQTOP	For each firm, quarterly change in production capacity QTOP due to investments. Computed in PRODFRONT.
+QCHQTOP1	Production capacity increase that can be used regardless of slack considerations. Computed in PRODFRONT.
+QCHQTOP2	That part of a production capacity increase which goes into the firm's slack. Computed in PRODFRONT.
+QCHRI	Quarterly change in the base rate of interest. Computed in CREDIT MARKET.
+QCHRU	Quarterly change in rate of unemployment (a difference between fractions). Computed in LABOUR UPDATE.
+QCHTSTO	On each market, total quarterly change in inventory to be distributed between firms. Computed in FIRMSTO.
+QCHTSTOCURF	Quarterly change in aggregate (sector-level) inventories, value at factor prices. Help variable used in NATIONAL ACCOUNTING.
+QCHTSTOCURM	Quarterly change in aggregate (sector-level) inventories, valued at factor prices. Help variable used in NATIONAL ACCOUNTING.
+QCHTXVA1	Quarterly change in value-added tax rate for investment goods. Entered exogenously.
+QCHTXVA2	Quarterly change in value-added tax rate for non-investment goods. Entered exogenously.
+QCHW	For each firm, its quarterly wage change in absolute terms. Computed in LABOUR SEARCH.
+QCPI			Consumer price index, updated in HOUSEHOLD UPDATE.
+QCTAX		Aggregate corporate taxes during one quarter. Computed in INVFIN.
+QDCPI	Quarterly change in consumer price index (a fraction). Computed in HOUSEHOLD UPDATE.
+QDEMFUND	Total demand on funds for new borrowing during one quarter, from firms and the government. Computed in CREDIT MARKET.
+QDEPR	For each firm, the quarterly depreciation of its production equipment at replacement value. Help variable in INVFIN.
+QDEPRBOOK	For each firm, the quarterly depreciation of its production equipment at book value (for taxation purposes). Help variable in INVFIN.
+QDESCHBW	For each firm, its desired new borrowing for one quarter. Computed in INVFIN based on current real rate of return and on the capacity utilization within the firm.
+QDESCHK2	For each firm, its desired change in current assets, to make these a certain proportion of sales. Computed in INVFIN.
+QDI	A household's disposable income for one quarter. Computed in HOUSEHOLD INIT.
+QDIV	For each firm, its quarterly payments of dividends to the household aggregate. Computed in INVFIN.
+QDMTEC	On each market, the rate of technology upgrade for production equipment (a fraction on quarterly basis). Entered exogenously.
+QDP	For each firm, its quarterly increase in sales price (a fraction). Computed in FINALQPQSQM.
+QDPDOM	On each market, the quarterly increase in domestic price (a fraction). Computed in DOMESTIC RESULT.
+QDPFOR	On each market, the quarterly increase in foreign price (a fraction). Exogenously entered in EXPORT MARKETS.
+QDPIN	For each external sector, the quarterly increase in domestic price including value added tax (a fraction). Entered exogenously.
+QDPK	One quarter's relative price increase for investment goods. A help variable computed in INVFIN, equal for all firms.
+QDQ	For each firm, its quarterly increase in production volume (a fraction). Computed in PLANQREVISE.
+QDS	For each firm, its quarterly increase in sales value (a fraction). Computed in FINALQPQSQM.
+QDVA	For each firm, its quarterly increase in value added in current prices (a fraction). Computed in FINALQPQSQM.
+QDW	For each firm, its quarterly wage increase (a fraction). Computed in LABOUR UPDATE.
+QDWG	The quarterly increase (a fraction) in government wage level. Computed in GLABOUR.
+QDWIND	Average wage increase in the industry during one quarter (a fraction). Computed in LABOUR UPDATE.
+QEXPDP	For each firm, its expectation on price increase for the next quarter (a fraction). Help variable used in QUARTERLY EXP.
+QEXPDS	For each firm, its expectation on sales value increase for the next quarter (a fraction). Help variable used in QUARTERLY EXP.
+QEXPDW	For each firm, its expectation on wage increase for the next quarter (a fraction). Help variable used in QUARTERLY EXP.
+QEXPORT	Aggregate export value during one quarter. First computed in EXPORT MARKETS, and then added to in EXTERNAL SECTORS.
+QEXPORTIN	For each external sector, the export value during one quarter. Computed in EXTERNAL SECTORS.
+QEXPP	For each firm, its expected sales price for the next quarter. Computed in QUARTERLY EXP.
+QEXPPIM	For each kind of input good, the expected purchase price for a quarter. Computed in QUARTERLY EXP; assumed to be same for all firms.
+QEXPPNET	For each firm, an expected "net" sales price for the next quarter, with reductions for purchases of input goods. Help variable in TARGET SEARCH.
+QEXPS	For each firm, its expected sales value for the next quarter. Computed in QUARTERLY EXP.
+QEXPSU	For each firm, its expected sales volume for the next quarter. Computed in INITPRODPLAN.
+QEXPW	For each firm, its expected wage level for the next quarter (expressed on a yearly basis). Computed in QUARTERLY EXP.
+QFASSPAY	One quarter's payment of trade credits, reducing the stock FASS of claims on foreigners. Computed in BANK TRANSACTIONS.
+QFDPAY	One quarter's payments of trade debts, reducing the stock FD of debt to foreigners. Computed in BANK TRANSACTIONS.
+QFR	For each firm, its production possibility frontier (volume per quarter) as a function of its labour force. Computation is described within block PRODPLAN.
+QGNPCUR	Gross national product during one quarter (current prices), with components as indicated in NATIONAL ACCOUNTING.
+QGNPFIX	Gross national product during one quarter (fixed prices), with components as indicated in NATIONAL ACCOUNTING.
+QIMPORT	Aggregate import value during one quarter. Computed in COMPUTE IMPORTS.
+QIMPURCHIN	For each external model sector, the value of input-good purchases by the sector during one quarter. Computed in EXTERNAL SECTORS.
+QIMQ	For each firm and each kind of input good, the quantity (volume terms) that the firm buys of that good during one quarter. Computed in INTERMEDIATE PRODUCTS.
+QINPAY	Households' aggregate wage and capital income from the external sectors during one quarter. Computed in EXTERNAL SECTORS.
+QINTF	Aggregate interest payments from firms to the bank during one quarter. Computed in INVFIN.
+QINTG	Net domestic interest receipts by the government during one quarter. Computed in GOVERNMENT ACCOUNTING.
+QINTGFOR	Net foreign interest receipts by the government during one quarter. Computed in GOVERNMENT ACCOUNTING.
+QINTH	Aggregate interest receipts by households during one quarter. Computed in HOUSEHOLD INIT.
+QINTK2	Aggregate interest receipts by firms during one quarter. Computed in INVFIN.
+QINV	For each firm, its quarterly installed investments (value terms). Computed in INVFIN.
+QINVBLD	Aggregate investments in residential construction during one quarter. Entered exogenously and paid for by one external model sector.
+QINVG		Government investments during one quarter, exogenously entered.
+QINVIN	Aggregate investments by external sectors during one quarter (less residential construction). Entered exogenously.
+QINVLAG	For each firm, the money allocated for investments during one quarter, entering as demand on the product market next quarter. Computed in INVFIN ADJUSTMENTS.
+QINVTOT	Aggregate investments in the economy (money terms) during one quarter. One component for each sector delivering goods for investments; a help variable used in COMPUTE BUYING.
+QITAX	Aggregate income taxes during one quarter. Computed in HOUSEHOLD INIT.
+QM	For each firm, its profit margin during a quarter (a fraction). Calculated in FINALQPQSQM.
+QMAXTSUDOM	For each explicit market, maximum sales volume for a quarter due to MINSTO considerations. Help variable used within COMPUTE IMPORTS.
+QMPRINT	One quarter's change in the monetary base (absolute value). Entered in GOVERNMENT ACCOUNTING as a policy option.
+QOPTSU	For each firm, its optimum sold volume during a quarter. Computed in PLANQREVISE.
+QOPTSUDOM	Optimum sold volume on the domestic market (units per quarter). Computed for each firm in MARKET ENTRANCE.
+QP	For each firm, its sales price during a quarter (an average between foreign and domestic price). Updated in FINALQPQSQM. This price includes any sales-based subsidies, but not value added tax.
+QPDOM	On each market, the domestic price during one quarter. Updated in DOMESTIC RESULT. This price. Includes value added tax.
+QPFOR	On each market, the foreign price during one quarter. Updated in EXPORT MARKETS. This price does not include value added tax.
+QPFORIN	For each external sector, the foreign price during one quarter, not including value added tax. Updated in EXTERNAL SECTORS.
+QPH	Domestic price in each expenditure category as households see them. Updated in HOUSEHOLD UPDATE.
+QPLANL	For each firm, its planned labour force for a quarter. Computed in TARGET SEARCH.
+QPLANQ	For each firm, its planned production volume during a quarter. Computed in INITPRODPLAN; revised in TARGET SEARCH and in PLANQREVISE.
+QPRELCPI	Preliminary consumer price index. Computed in COMPUTE EXPENDITURES each time households meet an offering price vector PT.
+QPRELPDOM	On each explicit market, the firms' initial offering price. Computed in MARKET ENTRANCE.
+QPURCHG	For each model sector, the government's purchases (money terms) of goods and services (less investments) during one quarter. Computed in MARKET CONFRONT.
+QQ	Production for a firm (units per quarter). Computed in PLANQREVISE.
+QQIN	For each external sector, its aggregate production volume during one quarter. Updated in EXTERNAL SECTORS.
+QREALCHLG	Quarterly net change in government employment (number of persons). Entered exogenously in GLABOUR.
+QRED	For each firm, the forced reduction (if any) in one quarter's production volume due to insufficient inventories of input-materials. Help variable in PLANQREVISE.
+QREDTBW	The total quarterly amount by which firms must lower their desired new borrowing, in the case of excess demand for funds. Help variable in CREDIT MARKET.
+QREV	For each firm, its quarterly gross revenue: Sales less wages and purchases of input materials, plus and minus interests. Help variable in INVFIN.
+QRR	For each firm, its rate of return before taxes (a fraction on a yearly basis). Computed in INVFIN each quarter.
+QS	For each firm, its sales value during one quarter. Computed in FINALQPQSQM.
+QSAVH	Aggregate household savings (per quarter). Computed in HOUSEHOLD UPDATE.
+QSAVHREQ	One quarter's reduction in aggregate household borrowing (forced increase in net savings), in the case of in excess demand for funds. Computed in CREDIT MARKET.
+QSDOM	For each firm, its domestic sales value during one quarter. Computed in FIRMSTO.
+QSDOMIN	For each external sector, its aggregate sales value during one quarter. Computed in EXTERNAL SECTORS.
+QSFOR	For each firm, its foreign sales value during one quarter. Computed in EXPORT MARKETS.
+QSNET	For each firm, its net sales value (less purchases of input goods) during one quarter. Computed in FINALQPQSQM.
+QSP	Household expenditure in each category (value per quarter and household). Computed in COMPUTE in each iteration on the domestic market.
+QSPE	"Essential" household expenditures in each category (value per quarter and household). Help variable used within COMPUTE EXPENDITURES.
+QSPG	Total government expenditures (less investments and interest payments) during one quarter. Updated in GOVERNMENT ACCOUNTING.
+QSPSAVREQ	For each household, one quarter's reduction in new borrowing (forced increase in new savings) in the case of excess demand for funds. Computed in HOUSEHOLD INIT.
+QSU	For each firm, its sales volume during one quarter. Computed in FINALQPQSQM.
+QSUBS	One quarter's total subsidy payments to firms from the government. Computed in GOVERNMENT ACCOUNTNG as the sum over three components.
+QSUBSDOM	One quarter's subsidy payments, related to domestic sales, to firms from the government. Computed in FIRMSTO.
+QSUBSFOR	One quarter's subsidy payments, related to exports, to firms from the government. Computed in EXPORT MARKETS.
+QSUBSCASH	One quarter's temporary subsidy payments ("liquidity injections") to firms from the government. Computed in INVFIN.
+QSUDOM	For each firm, its domestic sales volume during one quarter. Computed in FIRMSTO.
+QSUFOR	For each firm, its foreign sales volume during one quarter. Computed in EXPORT MARKETS.
+QSUPFUND	Availability of funds for new borrowing during one quarter, in concordance with prevailing monetary restrictions. Computed in CREDIT MARKET.
+QSUPFUND1	Ceiling on the availability of funds for new borrowing during one quarter, related to the bank's necessity to have a liquidity in proportion to its total lending. Help variable in CREDIT MARKET.
+QSUPFUND2	Ceiling on the availability of funds for new borrowing during one quarter, related to the bank's necessity to have a liquidity in proportion to total deposits in the bank. Help variable in CREDIT MARKET.
+QSURPLUSG	The government's surplus during one quarter. Computed in GOVERNMENT ACCOUNTING.
+QTARGM	For each firm, its profit-margin target for a quarter (a fraction). Computed in QUARTERLY TARG.
+QTAX	For each firm, the corporate tax that it pays during one quarter. Help variable in INVFIN.
+QTBUY	Aggregate purchasing (including imports) from each model sector during one quarter. Computed in COMPUTE BUYING (volume terms).
+QTBUYDOM	Aggregate purchasing (exclusive of imports) from each model sector during one quarter. Computed in COMPUTE IMPORTS (volume terms).
+QTBUYFOR1	One quarter's aggregate "normal" (related to an import fraction) imports within each model sector. Computed in COMPUTE IMPORTS (volume terms).
+QTBUYFOR2	One quarter's aggregate "extra" (in cases of large excess demand) imports within each explicit model sector. Computed in COMPUTE IMPORTS (volume terms).
+QTCHBW	One quarter's total new borrowing for all firms. Computed in INVFIN ADJUSTMENTS.
+QTDIV	One quarter's aggregate payments of dividends from firms to households. Updated in INVFIN.
+QTI	Total household incomes (before taxes) during one quarter. Computed in HOUSEHOLD INIT.
+QTOP	Potential output for a firm (units per quarter) at zero slack and infinite labour force. Updated in PRODFRONT.
+QTRANS	One quarter's transfer payments from government to the household aggregate. Computed in HOUSEHOLD INIT.
+QTSUDOM	For each explicit model sector, the quarterly sold volume on the domestic product market (exclusive of imports). Computed in DOMESTIC RESULT.
+QTTAX	Total tax receipts by the government during one quarter. Updated in GOVERNMENT ACCOUNTING.
+QTWS	Total wage sum in the economy (before payroll taxes) during one quarter. Help variable in HOUSEHOLD INIT.
+QVA	For each firm, its value added during one quarter. Computed in FINALQPQSQM.
+QVAIN	For external sectors, its value added during one quarter. Computed in EXTERNAL SECTORS.
+QVATAX	For each model sector, the value added tax generated during one quarter. Computed in INDIRECT TAXES. 
+QVATAXIMP	That part of total value added taxes, generated during one quarter, which is related to imports.
+QW	For each firm, its wage level (expressed on a yearly basis) during one quarter. Updated in LABOUR UPDATE. The wage includes any payroll taxes.
+QWASTE	For each explicit sector, the waste that occurs (during one quarter) in case of insufficient finished-goods inventory capacities. Computed in FIRMSTO.
+QWG	Government wage level (expressed on a yearly basis) during one quarter. Updated in GLABOUR. The wage includes any payroll taxes.
+QWSG	The government's wage sum during one quarter, including any payroll taxes. Computed in GOVERNMENT ACCOUNTING.
+QWTAX	Aggregate payroll taxes for one year. Updated in GOVERNMENT ACCOUNTING.
+Q2	For each firm, maximum production for a quarter regarding sales plan and inventory maximum. Help variable used within TARGET SEARCH.
+Q3	For each firm, maximum production for a quarter regarding actual labour force and slack limitations. Help variable used in TARGET SEARCH.
+Q7	For each firm, a quarterly production level, below which structural slack is activated. Help variable used within TARGET SEARCH.
+R	A constant implying how much firms rely on external information when they form expectations (in YEARLY EXP).
+REDCHBW	Maximum allowed change in borrowing (fraction of BW). Currently REDCHBW = 0.15.
+RES	Structural slack for a firm (fraction). Updated in PRODFRONT and (under target pressure only) in TARGET SEARCH.
+RESDOWN	A constant telling by how much firms can reduce their slack during one quarter.
+RESMAX		A constant telling maximum slack any firm can have.
+RET			Retirement rate on the labour market (a fraction on quarterly basis).
+RFPAY	A variable, accounting for the effect of foreign/domestic rate-of-interest differentials on payment periods for foreign trade credits and debts. Help variable in BANK TRANSACTIONS.
+RFQ	For each firm, the minimum labour force needed as a function of desired production (volume per quarter). The computation is described within block PRODPLAN; this is the inverse function to QFR(L).
+RFUND1	A fraction indicating the liquidity restriction on the bank as regards total lending. Used in CREDIT MARKET.
+RFUND2	A fraction indicating the liquidity restriction on the bank as regards total deposits. Used in CREDIT MARKET.
+RHO	Physical depreciation rate of production equipment (a fraction on quarterly basis).
+RHOBOOK	Maximum allowed depreciation rate of production equipment, for taxation purposes. A fraction on quarterly basis.
+RHODUR	Depreciation rate of consumer durable goods (a fraction on quarterly basis).
+RI	The base rate of interest, in parallel with which all other domestic rates move. Updated in CREDIT MARKET.
+RIBWFOR		The exogenous foreign lending rate of interest.
+RIBWG	The rate of interest on the government's domestic borrowing. Updated in CREDIT MARKET.
+RIBWGFOR	The rate of interest on the government's foreign borrowing. Updated in CREDIT MARKET.
+RIDEPFOR		The exogenous foreign deposit rate of interest.
+RIDEPG	The rate of interest on the government's domestic deposits. Updated in CREDIT MARKET.
+RIDEPGFOR	The rate of interest on the government's foreign deposits. Updated in CREDIT MARKET.
+RIF	The rate of interest on firms' borrowing from the bank. Updated in CREDIT MARKET.
+RIH	The rate of interest on household savings. Updated in CREDIT MARKET.
+RIK2	The rate of interest on firms' deposits in the bank. Updated in CREDIT MARKET.
+RLU	Fraction used in HOUSEHOLD INIT to compute unemployment compensation in proportion to average wage level in the industry.
+RSUBS	Fraction used in EXPORT MARKETS and FIRMSTO to compute government subsidies to firms in relation to their sales value. Same for all firms in a market.
+RSUBSCASH	Fraction used in INVFIN to compute temporary government subsidies to firms ("liquidity injections"), in relation to sales value.
+RTD	Ratio between firms' dividend payments and corporate taxes; used in INVFIN. Assumed constant and assumed equal for all firms.
+RTRANS	Ratio between total transfer payments to households (less unemployment compensation) and total taxes. Used in HOUSEHOLD INIT; Assumed constant.
+RU			Rate of unemployment (a fraction). Computed in LABOUR UPDATE.
+RW	A constant giving firms' desired amount of working capital (K2) as a fraction of current yearly sales.
+S	For each firm, its sales value for one year. Updated in YEARLY UPDATE.
+SACK	For each firm, the number of people fired during a quarter. Help variable within LABOUR UPDATE.
+SAV	Indexing variable, giving savings component of household expenditure vectors.
+SHARE	sharei IOjm = purchasing share (fraction of prod.) of product j for firm i where firm i belongs to product market.
+		i = firm-index (1,…10)
+		j = product-index (1,…10)
+		m = product-index (1,…10)
+SHORTAGE	For each firm and each kind of input good, the discrepancy between the quantity of the good, needed to fulfil production plans a certain quarter, and the available quantity (zero if supplies are enough). Help variable in PLANQREVISE.
+SKREPA	A constant factor by which the probability for the pool of unemployed to be selected at a labour market attack is upgraded, as compared with the probability for any firm to be selected. Used in CONFRONT.
+SMALL	For each firm, the fraction of current yearly sales that firms consider as minimum for their finished-goods inventories.
+SMOOTH	Constant used by households to (each quarter) time-smooth their addicted consumption levels and savings ratio.
+SMP	Constant used by firms to (each year) time-smooth their price experiences.
+SMS	Constant used by firms to (each year) time-smooth their sales experiences.
+SMT	Constant used by firms to (each year) time-smooth their profit-margin experiences.
+SMW	Constant used by firms to (each year) time-smooth their wage experiences.
+SNET	For each firm, its net sales value (less purchases of input goods) for one year. Computed in YEARLY UPDATE.
+SPG	Total government expenditures (less investments and interest payments) for one year. Computed in GOVERNMENT ACCOUNTING.
+STO	For each firm, its current inventory level (volume terms). Updated in FIRMSTO.
+STODUR	Each household's stock of durable goods (value terms). Updated in HOUSEHOLD UPDATE.
+SUBS	One year's total subsidy payments to firms from the government. Updated in GOVERNMENT ACCOUNTING.
+SURPLUSG	The government's surplus for one year. Computed in GOVERNMENT ACCOUNTING.Average payment period for foreign trade credits; used in BANK TRANSACTIONS.
+SWAP	A factor determining the short-term trade-off between savings and expenditures on consumer durables. Computed in COMPUTE EXPENDITURES.
+TARGM	For each firm, its profit-margin target for one year (a fraction). Computed in YEARLY TARG.
+TEC	Technology factor for a firm (units per person and quarter). Updated in PRODFRONT.
+THETA	Maximum fraction of a firm's labour force that it can lose in one labour market attack. Used in LABOUR SEARCH.
+TMFASS	Average payment period for foreign trade credits; used in BANK TRANSACTIONS.
+TMFD	Average payment period for foreign trade debts; used in BANK TRANSACTIONS.
+TMIMP	For each market, the time constant to adjust import share in MARKET CONFRONT.
+TMIMSTO	Time constant for firms when adjusting finished-goods inventories. Used in INTERMEDIATE PRODUCTS. Assumed to be equal for all firms.
+TMINV	Average delay time to install investments in new production equipment. Used in INVFIN; assumed to be equal for all firms in a market.
+TMSTO	Time constant for firms when adjusting finished-goods inventory discrepancy (years). Used in INITPRODPLAN and in PLANQREVISE.
+:	Time constant for firms when they adjust export share in EXPORT MARKETS (years; common to all firms on a market).
+TOTCHSTO	For each explicit market, the total change in finished-goods inventories that remains to be distributed between firms. Help variable in FIRMSTO.
+TRANS	One year's transfer payments from the government to the household aggregate. Computed in GOVERNMENT ACCOUNTING.
+TSTOCURF	For each explicit sector, the aggregate finished-goods inventories at current factor prices. Updated in NATIONAL ACCOUNTING.
+TSTOCURM	For each explicit sector, the aggregate finished-goods inventories at current market prices.
+TXC			The exogenous corporate-tax rate.
+TXI2			An exogenous income-tax parameter.
+TXI3			An exogenous income-tax parameter.
+TXVA1		The exogenous value-added-tax rate (investment goods only).
+TXVA2		The exogenous value-added-tax rate (non-investment goods).
+TXW			The exogenous payroll-tax rate for the non-government sectors.
+TXWG			The exogenous payroll-tax rate for government sectors.
+UPPER	For each firm, the maximum inventory level it could ever end up with. A help variable in STOSYSTEM.
+UTREF	A reference" level of capacity utilization. Used in INVFIN when firms form their desired new borrowing and correct it for their current degree of utilization. Assumed equal for all firms.
+VA	For each firm, its value added for one year. Computed in YEARLY UPDATE.
+VATAX	Total value added tax for one year. Computed in GOVERNMENT ACCOUNTING.
+W	For each firm, its average wage for one year. Computed in YEARLY UPDATE. The wage includes any payroll taxes.
+WG	Average government wage level for one year, including any payroll taxes. Updated in GOVERNMENT ACCOUNTING.
+WGREF	Government wage level (WG) for a reference year. Used in NATIONAL ACCOUNTING to deflate the public-services component of GNP.
+WH	Each household's wealth (current value of its bank deposits). Updated in HOUSEHOLD UPDATE.
+WHRA	Each household's addicted wealth ratio (quotient between bank deposits and quarterly disposable income). Updated in HOUSEHOLD UPDATE.
+WSG	Total government wage sum for one year. Updated in GOVERNMENT ACCOUNTING.
+WTAX	Total payroll taxes for one year. Updated in GOVERNMENT ACCOUNTING.
+WTIX	Working time index in the explicit sectors; assumed equal for all firms. Enters each firm's individual production function QFR.
+WW	Each firm's wage. A help variable used within LABOUR SEARCH to accommodate market interactions.
+X	For each firm, its export share (fraction of sold volume). Updated in EXPORT MARKETS.
+XIN	Export fraction for each external model sector. Assumed to be constant over time.
+

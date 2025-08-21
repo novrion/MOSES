@@ -1,0 +1,2 @@
+niter,marketiter,e1,e2,eps,r,smp,sms,smt,smw,fip,fis,fiw,expxdp,expxds,expxdw,loss,rho,resdown,resmax,tmsto,tmimsto,beta,imbeta,wtix,iota,rhobook,rtd,alfabw,betabw,redchbw,elinv,utref,maxdp
+9,3,0.1,0,0.05,0.5,0.5,0.5,0.5,0.5,0.076923,0.076923,0.076923,0.03,0.07,0.07,0.1,0.007067577511,0.9,0.2,1,1,0.5,0.5,1,0.5,0.03555807634,1,0.02875,0.8,0.15,3,0.85,0.06

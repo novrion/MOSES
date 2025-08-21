@@ -1,0 +1,2097 @@
+%https://www.overleaf.com/latex/examples/source-code-highlighting-with-minted-in-latex/qphhfvnsddbs
+
+\documentclass{article}
+
+\usepackage[a4paper, total={6in, 8in}]{geometry}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[hidelinks]{hyperref}
+
+% For the variable list
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+
+\setlength{\textfloatsep}{10pt plus 1.0pt minus 2.0pt}
+\setlength{\floatsep}{5pt plus 1.0pt minus 2.0pt}
+\setlength{\intextsep}{10pt plus 1.0pt minus 2.0pt}
+
+\MakeRobust{\Call}
+
+\title{MOSES C++ Technical Specification}
+\author{Elias Lindstenz}
+\date{February 2025}
+
+\begin{document}
+
+\maketitle
+\clearpage
+
+\tableofcontents
+\clearpage
+
+\section{Introduction}
+The following document contains the pseudocode for the C++ version of the Model Of the Swedish Economic System (MOSES) as of February 2025. The project was first designed in A Programming Language (APL). In 2023, it was converted to a preliminary C++ model based on the preliminary pseudocode from 1976. In 2025, the updated APL project was converted with the help of the pseudocode from 1989. The following pseudocode is largely equivalent to the pseudocode from 1989. There are minor changes that replicate the most updated APL version instead of the pseudocode. The pseudocode from 1989 has small differences to the current APL project. This pseudocode and the C++ model should be regarded as a hybrid between the two.
+
+This pseudocode has two purposes. First, it adjusts the differences from the older pseudocode. Second, it replicates C++'s object-oriented structure and style, which increases readability.
+
+In object-oriented coding, classes are templates of objects. For example, the Firm class describes the properties of a firm. The Firm class may contain variables such as margin, price, and sales. Variables refer locally to their respective class instances. In other words, the sales variable $s$ is not a globally defined array of all sales. It is the sales of a specific company. Classes also contain functions, called methods. These specify functionality of individual class instances. To initialise the production plan of a particular firm, for example, a firm calls $Firm::init\_prodplan$.
+
+Furthermore, the C++ implementation has polymorphic characteristics. Explicitly producing sectors (Market) and externals sectors (External) share functionality. They are both sectors, but differ in significant ways. This is programmatically implemented by classifying the Market and External classes as children of the Sector class. In other words, the classes inherit from their base class Sector. They are types of the Sector class. All markets and externals have copies of all Sector variables, but Market instances do not have copies of External-specific variables and vice versa. All sectors have an id, but only externals have the $x$ variable, and only markets have the $io$ variable, for example. The same rule applies to methods. For instance, both classes have their own variant of the $quarterly\_exp$ function, which is first declared in the Sector class, and later implemented in the Market and External classes for their respective specific differences. Market-specific and External-specific methods are only part of their respective class.
+
+The MOSES model is a very tightly coupled system. Different classes rely heavily on each other for functionality. The input-output coefficients for firms in a market are stored in the Market class, and not in the Firm class for instance. Therefore, firms must access their respective Market instances for access to that variable. The downside of such a design is that the pseudocode may become ambiguous, especially since multiple classes can have the same variable name. For example, the Household and the Government classes have the variable $qint$. To remove ambiguity, assume that variables within methods refer to that class unless specified otherwise. The same applies to loops. For example, if a calculation is computed for every firm, it should first be assumed that the calculation refers to the firms' variables. In more complicated cases, ambiguity is removed by adding a note under the function, or by prefixing the variable with the correct class. For instance, in a calculation involving both government and household receipts, the variables would appear like this: $Government::qint$, $Household::qint$.
+
+It should be noted that C++ is a 0-indexed programming language. The first item of an array is accessed with a zero index, not the number one. Therefore, the index-variable for the durables sector is two instead of three for example.
+
+The structure of the model can always be improved. It is difficult to achieve perfectly consistent naming since C++-specific terms limit naming. For example, government interest receipts on a yearly basis are named $intg$ instead of $int$ since $int$ refers to the integer datatype.
+
+In addition, variable classification can be discussed. For instance, it can be argued that household tax variables should be in the Household class since they refer to households. On the other hand, one may argue that all tax variables should be contained in the Government class since the government regulates taxes.
+
+The complete MOSES simulation is overviewed in \autoref{fig:MOSES-block-diagram-1}. The diagram is read from top to bottom and from left to right. Each module represents an important function. The simulation starts in $Simulate$, enters $Initialise$ before $Simulate$ $Year$, and completes $Prodplan$'s sub-modules before moving on to $Labour$ $Market$.
+
+The project source code is located in the public Github repository: \href{https://github.com/novrion/MOSES}{github.com/novrion/MOSES}.
+
+\section{Initialisation}
+Initialisation is uncomplicated. Input data necessary for functional simulation is stored in csv files. Reference the source code and the csv files for a template of how to fill the csv files with input data. A simple parser converts the data from the csv files into data within object instances before simulation.
+
+\begin{figure}[!htbp]
+    \caption{A Block Diagram of MOSES}
+    \label{fig:MOSES-block-diagram-1}
+    \centering
+    \includegraphics[width=\textwidth]{MOSES-block-diagram-1.pdf}
+\end{figure}
+
+\clearpage
+\section{Main Simulation}
+
+\begin{algorithm}[H]
+\caption{Simulate}
+\begin{algorithmic}
+        \Function{simulate}{}
+            \State \Call{initialise}{}
+            \ForAll{years}
+                \State \Call{simulate\_year}{}
+                \State $year = year + 1$
+            \EndFor
+        \EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Simulate Year}
+\begin{algorithmic}
+    \Function{simulate\_year}{}
+        \State \Call{yearly\_init}{}
+        \ForAll{firms}
+            \State \Call{yearly\_exp}{}
+            \State \Call{yearly\_targ}{}
+        \EndFor
+        \For{$relative\_quarter = 0, 1,\dots,3$}
+            \State \Call{simulate\_quarter}{}
+            \State $quarter = quarter + 1$
+        \EndFor
+        \ForAll{firms}
+        \State \Call{Firm::yearly\_update}{}
+        \EndFor
+    \EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Simulate Quarter}
+\begin{algorithmic}
+        \Function{simulate\_quarter}{}
+        \State \Call{quarterly\_exp}{}
+        \State \Call{prodplan}{}
+        \State \Call{labour\_market}{}
+        \State \Call{export\_market}{}
+        \State \Call{domestic\_market}{}
+        \ForAll{firms}
+        \State \Call{finalqpqsqm}{}
+        \State \Call{quarterly\_cum}{}
+        \EndFor
+        \State \Call{invfin}{}
+        \State \Call{government\_accounting}{}
+        \State \Call{national\_accounting}{}
+        \EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+
+\section{Yearly Functions}
+
+\subsection{Yearly Initialisation}
+
+\begin{algorithm}[H]
+\caption{Yearly Init}
+    \begin{algorithmic}
+        \Function{yearly\_init}{}
+        \State $cumgnpcur = 0$
+        \State $cumgnpfix = 0$
+        \State $cumexport = 0$
+        \State $cumimport = 0$
+        \\
+        \State \Call{Government::yearly\_init}{}
+        \ForAll{firms}
+        \State \Call{Firm::yearly\_init}{}
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Yearly Init (Government)}
+    \begin{algorithmic}
+        \Function{Government::yearly\_init}{}
+        \State $cumwtax = 0$
+    	\State $cumitax = 0$
+    	\State $cumvatax = 0$
+    	\State $cumctax = 0$
+    	\State $cumws = 0$
+    	\State $cuml = 0$
+    	\State $cuminv = 0$
+    	\State $cumpurch = 0$
+    	\State $cumtrans = 0$
+    	\State $cumsubs = 0$
+    	\State $cummprint = 0$
+    	\State $cumint = 0$
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Yearly Init (Firm)}
+    \begin{algorithmic}
+        \Function{Firm::yearly\_init}{}
+        \State $cumq = 0$
+        \State $cumm = 0$
+        \State $cumsu = 0$
+        \State $cums = 0$
+        \State $cump = 0$
+        \State $cumws = 0$
+        \State $cuml = 0$
+        \State $cuminv = 0$
+        \State $cumva = 0$
+        \State $cumsnet = 0$
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\clearpage
+\subsection{Yearly Expectations and Target}
+
+\begin{algorithm}[H]
+\caption{Yearly Exp}
+    \begin{algorithmic}
+    \Function{Firm::yearly\_exp}{}
+        \State \(histdp = smp * histdp + (1 - smp) * dp\)
+        \State  \(histdpdev = smp * histdpdev + (1 - smp) * (dp - expdp)\)
+        \State  \(histdpdev2 = smp * histdpdev2 + (1 - smp) * (dp - expdp)^2\)
+        \State  \(expidp = histdp + e1 * histdpdev - e2 * \sqrt{histdpdev2}\)
+        \State  \(expdp = (1 - r) * expidp + r * expxdp\)
+        \\
+        \State  \(histdw = smw * histdw + (1 - smw) * dw\)
+        \State  \(histdwdev = smw * histdwdev + (1 - smw) * (dw - expdw)\)
+        \State  \(histdwdev2 = smw * histdwdev2 + (1 - smw) * (dw - expdw)^2\)
+        \State  \(expidw = histdw + e1 * histdwdev + e2 * \sqrt{histdwdev2}\)
+        \State  \(expdw = (1 - r) * expidw + r * expxdw\)
+        \\
+        \State  \(histds = sms * histds + (1 - sms) * ds\)
+        \State  \(histdsdev = sms * histdsdev + (1 - sms) * (ds - expds)\)
+        \State  \(histdsdev2 = sms * histdsdev2 + (1 - sms) * (ds - expds)^2\)
+        \State  \(expids = histds + e1 * histdsdev - e2 * \sqrt{histdsdev2}\)
+        \State  \(expds = (1 - r) * expids + r * expxds\)
+    \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Yearly Targ}
+    \begin{algorithmic}
+        \Function{Firm::yearly\_targ}{}
+        \State $mhist = \Call{max}{0, smt * mhist + (1 - smt) * m}$
+        \State $targm = mhist * (1 + eps)$
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\clearpage
+\subsection{Yearly Update}
+
+\begin{algorithm}[H]
+\caption{Yearly Update}
+    \begin{algorithmic}
+        \Function{Firm::yearly\_update}{}
+        \State $dq = \frac{cumq}{q} - 1$
+    	\State $q = q * (1 + dq)$
+    	\State $dp = \frac{cums}{cumsu * p} - 1$
+    	\State $p = p*(1 + dp)$
+    	\State $dw = \frac{cumws}{cuml * w} - 1$
+    	\State $w = w*(1 + dw)$
+    	\State $ds = \frac{cums}{s} - 1$
+    	\State $s = s*(1 + ds)$
+    	\State $dva = \frac{cumva}{va} - 1$
+    	\State $va = va*(1 + dva)$
+    	\State $snet = cumsnet$
+    	\State $chm = cumm - m$
+    	\State $m = m+chm$
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\clearpage
+\section{Quarterly Functions}
+
+\subsection{Quarterly Expectations}
+
+\begin{algorithm}[H]
+\caption{Quarterly Exp}
+    \begin{algorithmic}
+        \Function{quarterly\_exp}{}
+        \ForAll{firms}
+        \State \Call{Firm::quarterly\_exp}{}
+        \State \Call{Firm::quarterly\_targ}{}
+        \EndFor
+        \ForAll{markets}
+        \State \Call{Market::quarterly\_exp}{}
+        \EndFor
+        \ForAll{externals}
+        \State \Call{External::quarterly\_exp}{}
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Quarterly Exp (Firm)}
+    \begin{algorithmic}
+        \Function{Firm::quarterly\_exp}{}
+        \State \(qexpdp=\frac{expdp}{4}\)
+        \State \(qexpdw=\frac{expdw}{4}\)
+        \State \(qexpds=\frac{expds}{4}\)
+        \If{last quarter in year}
+        \State \(qexpdp=qexpdp+fip*(qdp-qexpdp)\)
+        \State \(qexpdw=qexpdw+fiw*(qdw-qexpdw)\)
+        \State \(qexpds=qexpds+fis*(qds-qexpds)\)
+        \EndIf
+        \State \(qexpp = qp * (1 + qexpdp)\)
+    	\State \(qexpw = qw * (1 + qexpdw)\)
+    	\State \(qexps = qs * (1 + qexpds)\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Quarterly Targ}
+    \begin{algorithmic}
+        \Function{Firm::quarterly\_targ}{}
+        \State \(qtargm = targm\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Quarterly Exp (Market)}
+    \begin{algorithmic}
+        \Function{Market::quarterly\_exp}{}
+        \State \(qexpdpim = \frac{\Call{sum}{qq * qexpdp}}{\Call{sum}{qq}}\)
+        \State \(qexppim = (1 - txva2) * qpdom * (1 + qexpdpim)\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Quarterly Exp (External)}
+    \begin{algorithmic}
+        \Function{External::quarterly\_exp}{}
+        \State \(qexpdpim = qdp - qchtxva2\)
+        \State \(qexppim=(1 - txva2) * qpdom * (1 + qexpdpim)\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsection{Production Planning}
+
+\begin{algorithm}[H]
+\caption{Prodplan}
+    \begin{algorithmic}
+        \Function{prodplan}{}
+        \State \Call{luupdate}{}
+        \State \Call{prodfront}{}
+        \ForAll{firms}
+        \State \Call{Firm::init\_prodplan}{}
+        \If{not \Call{Firm::target\_search}{}}
+        \State \Call{nullify\_firm}{}
+        \EndIf
+        \EndFor
+        \\
+        \If{no firms left in a market}
+        \State exit simulation
+        \EndIf
+        \\
+        \ForAll{firms}
+        \State \(qplanqsave = qplanq\)
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Labour Unemployment Update}
+
+\begin{algorithm}[H]
+\caption{luupdate}
+    \begin{algorithmic}
+        \Function{luupdate}{}
+        \State \Call{Labour::luupdate}{}
+        \ForAll{firms}
+        \State \Call{Firm::luupdate}{}
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{luupdate (Labour)}
+    \begin{algorithmic}
+        \Function{Labour::luupdate}{}
+        \State \(lf = lu + Government::l + \Call{sum}{Firm::l}\)
+        \State \(lu = lu * (1-ret)\)
+        \State \(lu = lu + entry*lf\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Luupdate (Firm)}
+    \begin{algorithmic}
+        \Function{Firm::luupdate}{}
+        \State \(l = l *(1-ret)\)
+        \For{\(i=0,1,2\)}
+        \State \(aman\left[i\right] = aman\left[i\right] * (1 - ret)\)
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Production Frontier}
+
+\begin{algorithm}[H]
+\caption{Prodfront}
+    \begin{algorithmic}
+        \Function{prodfront}{}
+        \ForAll{markets}
+        \State \(mtec = mtec * (1 + qdmtec)\)
+        \EndFor
+        \ForAll{firms}
+        \State \Call{Firm::prodfront}{}
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Prodfront (Firm)}
+    \begin{algorithmic}
+        \Function{Firm::prodfront}{}
+        \State \(qtop = qtop * (1 - rho)\)
+        \State \(qchqtop1 = (1 - loss) * \frac{qinv * inveff}{qp}\)
+        \State \(qchqtop2 = \Call{min}{loss * \frac{qinv * inveff}{qp} * \frac{resmax-res}{resmax}, (qtop + qchqtop1) * \frac{resmax - res}{1 - resmax}}\)
+        \State \(qchqtop = qchqtop1 + qchqtop2\)
+        \\
+        \State \(res = \frac{res * (qtop + qchqtop1) + qchqtop2}{qtop + qchqtop}\)
+        \If{\(res < 0\) or \(res > resmax\)}
+        \State exit simulation
+        \EndIf
+        \\
+        \State \(tec = \frac{qtop + qchqtop}{\frac{qtop}{tec} + \frac{qchqtop}{mtec}}\)
+        \State \(qtop = qtop + qchqtop\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Initialise Production Plan}
+
+\begin{algorithm}[H]
+\caption{Init Prodplan}
+    \begin{algorithmic}
+        \Function{Firm::init\_prodplan}{}
+        \State \(qexpsu = \frac{qexps}{qexpp}\)
+        \State \(qplanq = \Call{max}{0, qexpsu + \frac{optsto - sto}{4 * tmsto}}\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+
+\subsubsection{Target Search}
+
+\begin{algorithm}[H]
+\caption{Target Search}
+    \begin{algorithmic}
+        \Function{Firm::target\_search}{}
+        \State \(qexppnet = qexpp - share * (io \times (qpdom * (1 - txva2)))\)
+        \\
+        \If{\(qplanq \geq qtop * (1 - res) * wtix\)}
+        \State \Return \Call{plan\_implies\_recruitment}{}
+        \EndIf
+        \\
+        \If{\(qplanq > \Call{qfr}{l}\)}
+            \If{\(\Call{sat}{qplanq, \Call{rfq}{qplanq}}\)}
+                \State \(qplanl = \Call{rfq}{qplanq}\)
+                \State \Call{handle\_layoffs}{}
+                \State \Return true
+            \EndIf
+            \State \Return \Call{plan\_implies\_recruitment}{}
+        \EndIf
+        \\
+        \If{\(\Call{sat}{qplanq, l}\)}
+            \State \(qplanl = l\)
+            \State \Call{handle\_layoffs}{}
+            \State \Return true
+        \EndIf
+        \\
+        \State \Return \Call{try\_increase\_production}{}
+        \EndFunction
+    \end{algorithmic}
+    \small The firm's market's io is matrix multiplied with market prices.
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Plan Implies Recruitment}
+    \begin{algorithmic}
+        \Function{Firm::plan\_implies\_recruitment}{}
+        \If{\(\Call{sat}{\Call{qfr}{l}, l}\)}
+            \State \Call{solve}{}
+            \State \Call{handle\_layoffs}{}
+            \State \Return true
+        \EndIf
+        \State \Return \Call{try\_reduce\_slack(\Call{qfr}{l}}{}
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Try Reduce Production}
+    \begin{algorithmic}
+        \Function{Firm::try\_reduce\_production}{}
+        \If{\(\Call{sat}{qplanq, \Call{rfq}{qplanq}}\)}
+        \State \Call{solve}{}
+        \State \Call{handle\_layoffs}{}
+        \State \Return true
+        \EndIf
+        \State \Return \Call{try\_reduce\_slack}{qplanq}
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Try Increase Production}
+    \begin{algorithmic}
+        \Function{Firm::try\_increase\_production}{}
+        \State \(q2 = \Call{min}{\Call{qfr}{l}, qexpsu + maxsto - sto}\)
+        \\
+        \If{\Call{sat}{q2, l}}
+        \State \(qplanq = \frac{l * \frac{qexpw}{4}}{(1 - qtargm) * qexppnet}\)
+        \State \(qplanl = l\)
+        \State \Call{handle\_layoffs}{}
+        \State \Return true
+        \EndIf
+        \\
+        \If{\(q2 = \Call{qfr}{l}\)}
+            \State \Return \Call{try\_reduce\_production}{}
+        \EndIf
+        \\
+        \If{\(\Call{sat}{q2, \Call{rfq}{q2}}\)}
+            \State \(qplanq = q2\)
+            \State \(qplanl = \frac{(1 - qtargm) * q2 * qexppnet}{\frac{qexpw}{4}}\)
+            \State \Call{handle\_layoffs}{}
+            \State \Return true
+        \EndIf
+        \\
+        \State \Return \Call{try\_reduce\_production}{}
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Try Reduce Slack}
+    \begin{algorithmic}
+        \Function{Firm::try\_reduce\_slack}{q7}
+        \If{\(\Call{sat}{q7, \Call{rfq}{\frac{1 - res}{1 - resdown * res} * q7}}\)}
+        \State \(qplanq = q7\)
+        \State \(qplanl = \frac{(1 - qtargm) * q7 * qexppnet}{\frac{qexpw}{4}}\)
+        \State \(res = 1 - \frac{q7 * (1 - res)}{\Call{qfr}{qplanl}}\)
+        \State \Call{handle\_layoffs}{}
+        \State \Return true
+        \EndIf
+        \\
+        \State \(res = res * resdown\)
+        \\
+        \If{\Call{sat}{0, 0}}
+        \State \Call{solve}{}
+        \State \Call{handle\_layoffs}{}
+        \State \Return true
+        \EndIf
+        \\
+        \State \Return false
+        \EndFunction
+    \end{algorithmic}
+    \small If no production plan can be found, false is returned and the firm is nullified.
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Handle Layoffs}
+    \begin{algorithmic}
+        \Function{Firm::handle\_layoffs}{}
+        \State \(layoff = \Call{max}{0, l - qplanl}\)
+        \State \(aman\left[0\right] = \Call{min}{layoff, aman\left[1\right]}\)
+        \State \(aman\left[1\right] = \Call{min}{layoff - aman\left[0\right], aman\left[2\right]})\)
+        \State \(aman\left[2\right] = layoff - aman\left[0\right] - aman\left[1\right]\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+
+\subsection{Labour Market}
+
+\begin{algorithm}[H]
+\caption{Labour Market}
+    \begin{algorithmic}
+        \Function{labour\_market}{}
+        \State \Call{glabour}{}
+        \State \Call{indlabour}{}
+        \ForAll{firms}
+        \State \Call{planqrevise}{}
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Government Labour}
+
+\begin{algorithm}[H]
+\caption{Glabour}
+    \begin{algorithmic}
+        \Function{Government::glabour}{}
+        \State \(qchl = \Call{min}{lu, l * ret + qrealchl}\)
+        \State \(l = l + qchl - ret * l\)
+        \State \(qdw = qdwind\)
+        \State \(qw = qw * (1 + qdw)\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Industrial Labour}
+
+\begin{algorithm}[H]
+\caption{Indlabour}
+    \begin{algorithmic}
+        \Function{indlabour}{}
+        \State \Call{labour\_search}{}
+        \State \Call{labour\_update}{}
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Labour Search}
+    \begin{algorithmic}
+        \Function{labour\_search}{}
+        \ForAll{firms}
+        \State \(ww = qw + iota * (qexpw - qw)\)
+        \State \(ll = l\)
+        \If{\(chm > 0\)}
+        \State \(chl = qplanl - l\)
+        \Else
+        \State \(chl = \Call{rfq}{qplanq} - l\)
+        \EndIf
+        \EndFor
+        \State \(ll = lu\)
+        \\
+        \State Sort firms in descending order of \(\frac{chl}{ll}\)
+        \For{\(iter = 0, 1, \dots,niter-1\)}
+        \ForAll{firms}
+        \If{\(chl \leq 0\)}
+        \State go to next firm
+        \EndIf
+        \State \(i = this firm\)
+        \State \(target = \Call{choose\_labour\_target}{}\)
+        \If{target is the unemployment pool}
+        \State \Call{handle\_successful\_attack}{}
+        \algstore{laboursearch}
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+    \begin{algorithmic}
+        \algrestore{laboursearch}
+        \Else
+            \If{\(ww\left[i\right] > ww\left[target\right] * (1 - gamma)\)}
+            \State \Call{handle\_successful\_attack}{}
+        \Else
+            \State \(ww\left[i\right] = ww\left[i\right] + ksi * (ww\left[target\right] * (1 + gamma) - ww\left[i\right])\)
+            \EndIf
+        \EndIf
+        \EndFor
+        \EndFor
+        \\
+        \ForAll{firms}
+        \State \(qchl = ll - l\)
+        \State \(qchw = ww - qw\)
+        \EndFor
+        \State \(lu = ll\)
+        \\
+        \ForAll{firms}
+        \State \Call{handle\_labour\_search\_layoffs}{}
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+    \small chl, ww, and ll are temporary vectors.
+    \small ww and chl store firms' wage and desired change in labour.
+    \small ll stores firms' labour, concatenated to the unemployment pool.
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Handle Successful Attack}
+    \begin{algorithmic}
+        \Function{handle\_successful\_attack}{}
+        \State \(now = \Call{min}{theta * ll\left[target\right], chl\left[i\right]}\)
+        \State \(ll\left[i\right] = ll\left[i\right] + now\)
+        \State \(chl\left[i\right] = chl\left[i\right] - now\)
+        \State \(ll\left[target\right] = ll\left[target\right] - now\)
+        \If{\(target\) is a firm}
+            \State \(chl\left[target\right] = chl\left[target\right] + now\)
+        \EndIf
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Handle Labour Search Layoffs}
+    \begin{algorithmic}
+        \Function{Firm::handle\_labour\_search\_layoffs}{}
+        \State \(exit = \Call{max}{0, -qchl}\)
+        \If{\(exit > aman\left[0\right] + aman\left[1\right]\)}
+        \State \(aman\left[2\right] = \Call{max}{0, aman\left[2\right] - (exit - aman\left[0\right] - aman\left[1\right]}\)
+        \EndIf
+        \If{\(exit > aman\left[0\right]\)}
+        \State \(aman\left[1\right] = \Call{max}{0, aman\left[1\right] - (exit - aman\left[0\right])}\)
+        \EndIf
+        \If{\(exit > 0\)}
+        \State \(aman\left[0\right] = \Call{max}{0, aman\left[0\right] - exit}\)
+        \EndIf
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Labour Update}
+    \begin{algorithmic}
+        \Function{labour\_update}{}
+        \ForAll{firms}
+        \State \(sack = \Call{min}{aman\left[0\right], \Call{max}{0, l + qchl - qplanl}}\)
+        \State \(qchl = qchl - sack\)
+        \State \(aman\left[0\right] = aman\left[0\right] - sack\)
+        \State \(lu = lu + sack\)
+        \EndFor
+        \\
+        \State \(qdwind = \frac{\frac{\Call{sum}{(l + qchl) * (qw + qchw)}}{\Call{sum}{l + qchl}}}{\frac{\Call{sum}{l * qw}}{\Call{sum}{l}} - 1}\)
+        \\
+        \ForAll{firms}
+        \State \(l = l + qchl\)
+        \State \(qdw = \frac{qchw}{qw}\)
+        \State \(qw = qw + qchw\)
+        \\
+        \State \(qchru = \frac{lu}{(lu + Government::l + \Call{sum}{Firm::l}) - ru}\)
+        \State \(ru = ru + qchru\)
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+    \small qdwind sums across firms.
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Planqrevise}
+    \begin{algorithmic}
+        \Function{Firm::planqrevise}{}
+        \State \(qplanq = \Call{min}{qplanq, \Call{qfr}{l}}\)
+        \State \(qdq = \frac{qplanq}{qq} - 1\)
+        \State \(qq = qq * (1 + qdq)\)
+        \\
+        \For{\(i = 0, 1,\dots,NSEC - 1\)}
+        \State \(qimq\left[i\right] = \Call{max}{0, share * io\left[i\right] * qplanqsave + \frac{optimsto\left[i\right] - imsto\left[i\right]}{4 * tmimsto}}\)
+        \EndFor
+        \For{\(i = 0, 1, \dots, NSEC - 1\)}
+        \State \(imsto\left[i\right] = \Call{min}{maximsto\left[i\right], imsto\left[i\right] + qimq\left[i\right] - share * io\left[i\right] * qq}\)
+        \EndFor
+        \\
+        \State \(qtopsu = \Call{max}{0, qq * \frac{\frac{qexpsu}{qexpsu + (optsto - sto)}}{4 * tmsto}}\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsection{Export Market}
+
+\begin{algorithm}[H]
+\caption{Export Market}
+    \begin{algorithmic}
+        \Function{export\_market}{}
+        \ForAll{firms}
+        \State \Call{Firm::adjust\_foreign}{}
+        \EndFor
+        \\
+        \ForAll{markets}
+        \State \(qpfor = qpfor * (1 + qdpfor)\)
+        \EndFor
+        \\
+        \ForAll{firms}
+        \State \(qsfor = qsufor * qpfor * (1 + rsubs)\)
+        \EndFor
+        \\
+        \State \(qsubsfor = \Call{sum}{qsufor * qpfor * rsubs}\)
+        \State \(qexport = \Call{sum}{\frac{qsfor}{1 + rsubs}}\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Adjust Foreign}
+    \begin{algorithmic}
+        \Function{Firm::adjust\_foreign}{}
+        \If{\(qpdom * (1 - txva2) > qpfor\)}
+        \State \(x = x - \frac{1}{4 * tmx} * \frac{qpdom * (1 - txva2) - qpfor}{qpfor}\)
+        \Else
+        \State \(x = x + \frac{1 - x}{4 * tmx} * \frac{qpfor - qpdom * (1 - txva2)}{qpdom * (1 - txva2)}\)
+        \EndIf
+        \\
+        \State \(qsufor = x * qoptsu\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\clearpage
+\subsection{Domestic Market}
+
+\begin{algorithm}[H]
+\caption{Domestic Market}
+    \begin{algorithmic}
+        \Function{domestic\_market}{}
+        \State \Call{market\_entrance}{}
+        \State \Call{Household::init}{}
+        \State \Call{market\_confront}{}
+        \State \Call{compute\_imports}{}
+        \State \Call{domestic\_results}{}
+        \State \Call{external\_sectors}{}
+        \State \Call{household\_update}{}
+        \State \Call{indirect\_taxes}{}
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Market Entrance}
+
+\begin{algorithm}[!htbp]
+\caption{Market Entrance}
+    \begin{algorithmic}
+        \Function{market\_entrance}{}
+        \ForAll{firms}
+        \State \(qoptsudom = (1 - x) * qoptsu\)
+        \EndFor
+        \ForAll{markets}
+        \State \(qprelpdom = qpdom * (1 + qchtxva2) * \frac{\Call{sum}{qoptsudom * \frac{qexpp}{qp}}}{\Call{sum}{qoptsudom}}\)
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+    \small Sum across firms per market.
+\end{algorithm}
+
+\subsubsection{Household Init}
+
+\begin{algorithm}[!htbp]
+\caption{Init (Household)}
+    \begin{algorithmic}
+        \Function{Household::init}{}
+        \State \(qtrans = (rtrans * qttax) + lu * rlu * \frac{wstx}{4 * \Call{sum}{Firm::l}}\)
+        \State \(qint = rih * \frac{wh}{4} * nh\)
+        \State \(qtws = Government::l * \frac{Government::qw}{4} + qinpay + \Call{sum}{Firm::l * \frac{Firm::qw}{4}}\)
+        \State \(qwtax = (Government::l * \frac{Government::qw}{4}) * \frac{txwg}{1 + txwg} + (qinpay + \Call{sum}{Firm::l * \frac{Firm::qw}{4}}) * \frac{txw}{1 + txw}\)
+        \State \(qti = (qtws - qwtax) + qint + qtrans + qtdiv\)
+        \State \(qitax = qti * txi1\)
+        \State \(qdi = \frac{qti - qitax}{nh}\)
+        \State \(qspsavreq = \frac{qsavhreq}{nh}\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Market Confront}
+
+\begin{algorithm}[H]
+\caption{Market Confront}
+    \begin{algorithmic}
+        \Function{market\_confront}{}
+        \ForAll{markets}
+        \If{\(qpdom > qpfor\)}
+        \State \(imp = imp + \frac{1 - imp}{4 * tmimp} * \frac{qpdom * (1 - txva2) - qpfor}{qpfor}\)
+                \Else
+        \State \(imp = imp - \frac{imp}{4 * tmimp} * \frac{qpfor - qpdom * (1 - txva2)}{qpdom * (1 - txva2)}\)
+        \EndIf
+        \State \(pt = (1 - imp) * qprelpdom + imp * \frac{qpfor}{1 - txva2}\)
+        \EndFor
+        \ForAll{externals}
+        \State \(pt = qpdom * (1 + qdp)\)
+        \EndFor
+        \For{\(i = 0, 1,\dots,NSEC - 1\)}
+        \State \(qpurch\left[i\right] = gkoff\left[i\right] * Government::l * \frac{Government::qw}{4} * pt\left[i\right] * \frac{wgref}{100 * Government::qw}\)
+        \EndFor
+        \\
+        \For{\(iter = 0, 1,\dots,marketiter-1\)}
+        \State \Call{compute\_expenditures}{}
+        \State \Call{compute\_buying}{}
+        \If{\(iter = marketiter - 1\)}
+        \ForAll{markets}
+        \State \Call{price\_adjust}{}
+        \EndFor
+        \EndIf
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+    \small Clamp imp between 0 and 1.
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Compute Expenditures}
+    \begin{algorithmic}
+        \Function{Household::compute\_expenditures}{}
+        \State \(qprelcpi = \frac{\Call{sum}{qc}}{\Call{sum}{\frac{qc}{pt}}}\)
+        \State \(qchdcpi = \frac{qprelcpi}{qcpi} - 1 - qdcpi\)
+        \\
+        \ForAll{\(i = 0, 1, \dots, NEXPH- 1\)}
+        \If{\(i \neq DUR\) and \(i \neq SAV\)}
+        \State \(qspe\left[i\right] = cva\left[i\right] * pt\left[i\right]\)
+        \EndIf
+        \EndFor
+        \\
+        \State \(swap = alfa3 * (\frac{qchri}{4} - qchdcpi) + alfa4 * qchru\)
+        \State \(qspe\left[DUR\right] = \Call{max}{0, \frac{pt\left[DUR\right] * cva\left[DUR\right]}{rhodur} - \frac{pt\left[DUR\right]}{qp\left[DUR\right]} * (1 - rhodur) * stodur - qdi * swap}\)
+        \State \(qspe\left[SAV\right] = (whra * qdi - wh) + qdi * swap\)
+        \\
+        \For{\(i = 0, 1,\dots,NEXPH - 1\)}
+        \State \(qsp\left[i\right] = beta1\left[i\right] * qspe\left[i\right] + (beta2\left[i\right] + \frac{beta3\left[i\right] * qprelcpi}{qdi - qspsavreq}) * (qdi - qspsavreq - \Call{sum}{qspe\left[i\right] * beta1\left[i\right]})\)
+        \If{\(i \neq SAV\)}
+        \State \(qsp\left[i\right] = \Call{max}{0, qsp\left[i\right]}\)
+        \EndIf
+        \EndFor
+        \State \(qsp\left[SAV\right] = qsp\left[SAV\right] + qspsavreq\)
+        \EndFunction
+    \end{algorithmic}
+    \small Clamp swap between -0.05 and -0.05
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Compute Buying}
+    \begin{algorithmic}
+        \Function{compute\_buying}{}
+        \ForAll{markets}
+        \For{\(i = 0, 1, \dots, NSEC - 1\)}
+        \State \(qbuy\left[i\right] = \Call{sum}{qimq\left[i\right]}\)
+        \EndFor
+        \EndFor
+        \\
+        \For{\(i = 0, 1, \dots, NSEC- 1\)}
+        \State \(Government::qbuy\left[i\right] = \frac{qpurch\left[i\right]}{pt\left[i\right]}\)
+        \State \(Household::qbuy\left[i\right] = nh * \frac{qsp\left[i\right]}{pt\left[i\right]}\)
+        \\
+        \State \(qinvtot = omegag\left[i\right] * Government::qinv\left[i\right] + omegabld\left[i\right] * qinvbld + omegain\left[i\right] * qinvin + omega\left[i\right] * \Call{sum}{qinvlag}\)
+        \State \(Bank::qbuy\left[i\right] = \frac{qinvtot}{pt\left[i\right] * \frac{1 - txva2}{1 - txva1}}\)
+        \EndFor
+        \\
+        \ForAll{externals}
+        \State \(qq = \Call{invert\_matrix}{I - (io3 * \frac{1- imp}{1 - x})} * \Call{sum}{qbuy * \frac{1 - imp}{1 - x}}\)
+        \For{\(i = 0, 1,\dots, NSEC - 1\)}
+        \State \(qbuy\left[i\right] = io\left[i\right] * qq\)
+        \EndFor
+        \EndFor
+        \\
+        \ForAll{sectors}
+        \State \(qtbuy = \Call{sum}{qbuy}\)
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+    \small Sum across firms per market for \(Market::qbuy\left[i\right]\).\\
+    \small Matrix inversion requires the entire matrix intact. io3 is temporarily constructed from the externals' io.\\
+    \small The sum across qbuy is total buying from the current external.\\
+    \small qtbuy is total buying from each sector.
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Price Adjust}
+    \begin{algorithmic}
+        \Function{Market::price\_adjust}{}
+        \State \(ch = \frac{(1 - imp) * maxdp * pt}{4 * (marketiter - 1)}\)
+        \If{\(qtbuy * (1 - imp) < \Call{sum}{qoptsudom}\)}
+        \State \(pt = pt - ch\)
+        \Else
+        \State \(pt = pt + ch\)
+        \EndIf
+        \EndFunction
+    \end{algorithmic}
+    \small Sum across firms per market.
+\end{algorithm}
+
+\subsubsection{Compute Imports}
+
+\begin{algorithm}[H]
+\caption{Compute Imports}
+    \begin{algorithmic}
+        \Function{compute\_imports}{}
+        \State \(qimport = 0\)
+        \ForAll{markets}
+        \State \(qtbuyfor 1 = imp * qtbuy\)
+        \State \(qtbuydom = qtbuy - qtbuyfor1\)
+        \algstore{computeimports}
+    \end{algorithmic}
+\end{algorithm}
+\begin{algorithm}[H]
+    \begin{algorithmic}
+        \algrestore{computeimports}
+        \State \(qmaxtsudom = \Call{sum}{0, \Call{sum}{qq +sto - minsto - qsufor}}\)
+        \State \(qtbuydom = \Call{min}{qtbuydom, qmaxtsudom}\)
+        \\
+        \State \(qtbuyfor2 = qtbuy - (qtbuydom + qtbuyfor1\)
+        \State \(qtbuyfor = qtbuyfor1 + qtbuyfor2\)
+        \\
+        \State \(qimport = qimport + qtbuyfor * qpfor\)
+        \EndFor
+        \\
+        \ForAll{externals}
+        \State \(qtbuyfor = imp * qtbuy\)
+        \State   \(qtbuydom = qtbuy - qtbuyfor\)
+        \\
+        \State \(qimport = qimport + qtbuyfor * (1 - txva2) * qpdom * (1 + qdp)\)
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Domestic Results}
+
+\begin{algorithm}[H]
+\caption{Domestic Results}
+    \begin{algorithmic}
+        \Function{domestic\_results}{}
+        \ForAll{markets}
+        \State \Call{Market::domestic\_results}{}
+        \EndFor
+        \ForAll{externals}
+        \State \Call{External::domestic\_results}{}
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Domestic Results (Market)}
+    \begin{algorithmic}
+        \Function{Market::domestic\_results}{}
+        \State $qdpdom = \frac{pt - imp * qpfor}{(1 - imp) * qprelpdom} * (\frac{qprelpdom}{qpdom} - 1)$
+        \State $qpdom = qpdom * (1 + qdpdom)$
+        \State $qtsudom = qtbuydom$
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Domestic Results (External)}
+    \begin{algorithmic}
+        \Function{External::domestic\_results}{}
+        \State $qdpdom = \frac{pt}{qpdom} - 1$
+        \State $qpdom = qpdom * (1 + qdpdom)$
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsubsection{External sectors}
+
+\begin{algorithm}[H]
+\caption{External Sectors}
+    \begin{algorithmic}
+        \Function{external\_sectors}{}
+        \ForAll{externals}
+        \State $qexportin = qq * x * qpdom * (1 - txva2)$
+        \State $qsdom = qtbuydom * qpdom * (1 - txva2)$
+        \State $qva = qsdom + qexportin - qbuy \times (qpdom * (1 - txva2))$
+        \EndFor
+        \\
+        \State $qexport = qexport + \Call{sum}{qexportin}$
+        \State $qinpay = \Call{sum}{qinpay} - qinvbld - qinvin$
+        \EndFunction
+    \end{algorithmic}
+    \small $qpdom * (1 - txva2)$ substitutes $qpfor$.\\
+    \small $qbuy$ is matrix multiplies with respective prices per sector.
+\end{algorithm}
+
+\subsubsection{Household Update}
+
+\begin{algorithm}[H]
+\caption{Household Update}
+    \begin{algorithmic}
+        \Function{Household::household\_update}{}
+        \For{\(i = 0, 1, \dots, NEXPH - 1\)}
+        \If{\(i \neq DUR\) and \(i \neq SAV\)}
+        \State \(qc\left[i\right] = qsp\left[i\right]\)
+        \EndIf
+        \EndFor
+        \\
+        \State \(stodur = \frac{pt\left[DUR\right]}{qp\left[DUR\right]} * stodur + qsp\left[DUR\right]\)
+        \State \(qc\left[DUR\right] = rhodur * stodur\)
+        \State \(stodur = stodur * (1 - rhodur)\)
+        \\
+        \State \(qsp\left[SAV\right] = qdi - \Call{sum}{qsp} + qsp\left[SAV\right]\)
+        \State \(wh = wh + qsp\left[SAV\right]\)
+        \State \(qsav = qsp\left[SAV\right] * nh\)
+        \\
+        \For{\(i = 0, 1, \dots, NSEC-1\)}
+        \State \(cva\left[i\right] = smooth\left[i\right] * cva\left[i\right] + (1 - smooth\left[i\right]) * \frac{qc\left[i\right]}{pt\left[i\right]}\)
+        \EndFor
+        \\
+        \State \(whra = smooth\left[SAV\right] * whra + (1 - smooth\left[SAV\right]) * \frac{wh}{qdi}\)
+        \\
+        \For{\(i = 0, 1, \dots, NSEC-1\)}
+        \State \(qp\left[i\right] = pt\left[i\right]\)
+        \EndFor
+        \\
+        \State \(oldqcpi = qcpi\)
+        \State \(qcpi = \frac{\Call{sum}{qc}}{\Call{sum}{\frac{qc}{qp}}}\)
+        \State \(qdcpi = \frac{qcpi - oldqcpi}{oldqcpi}\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Indirect Taxes}
+
+\begin{algorithm}[H]
+\caption{Indirect Taxes}
+    \begin{algorithmic}
+        \Function{indirect\_taxes}{}
+        \ForAll{sectors}
+        \State \(qvatax = txva2 * (qpurch + nh * qsp)\)
+        \If{\(txva1 < 0\)}
+        \State \(more = \frac{qpdom * (1 - txva2)}{1 - txva1} * bank::qbuy\)
+        \State \(qvatax = qvatax + txva1 * more\)
+        \EndIf
+        \EndFor
+        \State \(qvataximp = \Call{sum}{\frac{qtbuyfor}{qtbuy} * qvatax}\)
+        \EndFunction
+    \end{algorithmic}
+    \small qvatax, qpurch, qsp, and Bank::qbuy are indexed in the real code.
+\end{algorithm}
+
+\clearpage
+\subsection{Inventory System}
+
+\begin{algorithm}[H]
+\caption{Sto System}
+    \begin{algorithmic}
+        \Function{sto\_system}{}
+        \State \Call{firm\_sto}{}
+        \ForAll{firms}
+        \State \Call{Firm::reference\_inventory\_levels}{}
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Firm Sto}
+    \begin{algorithmic}
+        \Function{firm\_sto}{}
+        \ForAll{firms}
+        \State \(limsto = sto + qq - qsufor\)
+        \State \(lower = \Call{min}{limsto, minsto}\)
+        \State \(upper = \Call{min}{limsto, maxsto}\)
+        \EndFor
+        \\
+        \State \(qsubsdom = 0\)
+        \ForAll{markets}
+        \State \(totchsto = \Call{min}{\Call{sum}{qq - qsufor} - qtsudom, \Call{sum}{upper - sto}}\)
+        \State \(qchtsto = totchsto\)
+        \State \(qwaste = \Call{sum}{qq - qsufor} - qtsudom - totchsto\)
+        \\
+        \ForAll{firms in market}
+        \If{\(sto > upper\)}
+        \State \(ch = upper - sto\)
+        \Else
+        \State \(ch = lower - sto\)
+        \EndIf
+        \State \(sto = sto + ch\)
+        \State \(qchsto = ch\)
+        \State \(totchsto = totchsto - ch\)
+        \EndFor
+        \\
+        \State \(diff1 = \Call{sum}{upper - sto}\)
+        \State \(diff2 = \Call{sum}{lower - sto}\)
+        \ForAll{firms in market}
+        \If{\(totchsto > 0\)}
+        \State \(ch = \frac{upper - sto}{diff1} * totchsto\)
+        \Else
+        \State \(ch = \frac{lower - sto}{diff2} * totchsto\)
+        \EndIf
+        \State \(sto = sto + ch\)
+        \State \(qchsto = qchsto + ch\)
+        \\
+        \State \(qsudom = qq - qsufor - qchsto\)
+        \State \(qsdom = qsudom * (1 + rsubs) * qpdom * (1 - txva2)\)
+        \EndFor
+        \\
+        \State \(qsubsdom = qsubsdom + \Call{sum}{qsudom * rsubs * qpdom * (1 - txva2)}\)
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+    \small Sums across firms are per market.
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Reference Inventory Levels}
+    \begin{algorithmic}
+        \Function{Firm::reference\_inventory\_levels}{}
+        \State \(j = relative\_quarter + 1\)
+        \State \(curs = 4 * \frac{s * (1 + \frac{histds}{4})^{j+1.5} + cums * (1 + \frac{histds}{4})^{\frac{j-1}{2}}}{j + 4}\)
+        \State \(curp = \frac{4 * p * (1 + \frac{histdp}{4})^{j + 1.5} + j * cump * (1 + \frac{histdp}{4})^{\frac{j - 1}{2}}}{j + 4}\)
+        \\
+        \State \(minsto = small * \frac{curs}{curp}\)
+        \State \(maxsto = big * \frac{curs}{curp}\)
+        \State \(optsto = minsto + beta * (maxsto - minsto)\)
+        \\
+        \For{\(i = 0, 1, \dots, NSEC-1\)}
+        \State \(minimsto\left[i\right] = imsmall * io\left[i\right] * share * \frac{curs}{curp}\)
+        \State \(maximsto\left[i\right] = imbig * io\left[i\right] * share * \frac{curs}{curp}\)
+        \State \(optimsto\left[i\right] = minimsto\left[i\right] + imbeta * (maximsto\left[i\right] - minimsto\left[i\right])\)
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+    \small io refers to the firm's market's io
+\end{algorithm}
+
+\clearpage
+\subsection{Final Quarterly Prices, Sales, and Margin}
+
+\begin{algorithm}[H]
+\caption{Finalqpqsqm}
+    \begin{algorithmic}
+        \Function{Firm::finalqpqsqm}{}
+        \State \(qsu = qsufor + qsudom\)
+        \State \(qds = \frac{qsfor + qsdom - qs}{qs}\)
+        \State \(qs = qsfor + qsdom\)
+        \State \(qdp = \frac{\frac{qs}{qsu} - qp}{qp}\)
+        \State \(qp = \frac{qs}{qsu}\)
+        \State \(qdva = qq * \frac{qp - \Call{sum}{io \times (qpdom * (1 - txva2)}}{qva} - 1\)
+        \State \(qva = qva * (1 + qdva)\)
+        \State \(qsnet = qs - \Call{sum}{qimq \times (qpdom * (1 - txva2))}\)
+        \State \(qm = 1 - \frac{l * \frac{qw}{4}}{qsnet}\)
+        \EndFunction
+    \end{algorithmic}
+    \small io and qimq are matrix multiplied with respective prices.
+\end{algorithm}
+
+\clearpage
+\subsection{Quarterly Cumulation}
+
+\begin{algorithm}[H]
+\caption{Quarterly Cum}
+    \begin{algorithmic}
+        \Function{Firm::quarterly\_cum}{}
+        \State \(cuminv = cuminv + qinvlag\)
+        \State \(cumq = cumq + qq\)
+        \State \(cumva = cumva + qva\)
+        \State \(cums = cums + qs\)
+        \State \(cumsu = cumsu + qsu\)
+        \State \(cumsnet = cumsnet + qsnet\)
+        \State \(cumws = cumws + l * \frac{qw}{4}\)
+        \\
+        \State \(j = relative\_quarter + 1 \)
+        \State \(cuml = \frac{(j - 1) * cuml + l}{j}\)
+        \\
+        \State \(cumm = 1 - \frac{cumws}{cumsnet}\)
+        \State \(cump = \frac{cums}{cumsu}\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\clearpage
+\subsection{Investment and Financing}
+
+\begin{algorithm}[H]
+\caption{Invfin}
+    \begin{algorithmic}
+        \Function{Firm::invfin}{}
+        \State \(qrev = qm * qsnet + k2 * \frac{rik2}{4} - bw * \frac{rif}{4}\)
+        \\
+        \State \(k1 = qinv + k1 * (1 + qdpk)\)
+        \State \(qdepr = rho * k1\)
+        \State \(k1 = k1 - qdepr\)
+        \\
+        \State \(k1book = k1book + qinv\)
+        \State \(qdeprbook = \Call{max}{0, \Call{min}{qrev, rhobook * k1book}}\)
+        \State \(k1book = k1book - qdeprbook\)
+        \\
+        \State \(k3imed = \Call{sum}{imsto \times (qpdom * (1 - txva2))}\)
+        \State \(k3finish = sto * qp\)
+        \State \(k3 = k3imed + k3finish\)
+        \\
+        \State \(qtax = txc * \Call{max}{0, qrev - qdeprbook}\)
+        \State \(qdiv = rtd * qtax\)
+        \State \(qcash = 4 * (qtax + qdiv) + qs * rsubscash\)
+        \\
+        \State \(qrr = 4 * \frac{qrev - qdepr}{k1 + k2 + k3}\)
+        \State \(qdeschk2 = rw * curs - k2\)
+        \\
+        \State \(qdeschbw = \Call{max}{0, 1 - elinv * (utref - \frac{qq}{qtop * wtix * (1 - res)})} * bw * (alfabw + betabw * (qdpk + \frac{qrr - rif}{4}))\)
+        \State \(qdeschbw = \Call{min}{qdeschbw, redchbw * bw}\)
+        \State \(qdeschbw = qdeschbw * \Call{Firm::check\_bw}{\frac{bw + qdeschbw}{k1 + k2 + qdeschk2 + k3}}\)
+        \\
+        \State \(qinv = \Call{Firm::delay}{}\)
+        \State \(inveff = qtop * \frac{qp}{k1}\)
+        \EndFunction
+    \end{algorithmic}
+    \small imsto is matrix multiplied with respective prices.
+\end{algorithm}
+
+\subsection{Government Accounting}
+
+\begin{algorithm}[H]
+\caption{Government Accounting}
+    \begin{algorithmic}
+        \Function{Government::accounting}{}
+        \State \(j = relative\_quarter + 1\)
+        \\
+        \State \(qint = dep * \frac{ridepg}{4} - bw * \frac{ribwg}{4}\)
+        \State \(qintfor = depfor * \frac{ridepgfor}{4} - bwfor * \frac{ribwgfor}{4}\)
+        \State \(qws = l * \frac{qw}{4}\)
+        \State \(qsubs = qsubsfor + qsubsdom + qsubscash\)
+        \State \(qsp = qws + qsubs + qtrans + \Call{sum}{qpurch}\)
+        \State \(qttax = qwtax + qitax + \Call{sum}{qvatax} + qctax\)
+        \State \(qsurplus = qttax + qint + qintfor - qsp - qinv\)
+        \State \(qmprint = \Call{max}{0, \frac{money}{4} * \frac{\Call{sum}{s * ds}}{\Call{sum}{s}}}\)
+        \\
+        \State \(posfor = posfor + qchposfor\)
+        \State \(depfor = \Call{max}{0, pos}\)
+        \State \(bwfor = \Call{max}{0, -posfor}\)
+        \\
+        \State \(qchpos = qsurplus + qmprint - qchposfor\)
+        \State \(pos = pos + qchpos\)
+        \State \(dep = \Call{max}{0, pos}\)
+        \State \(bw = \Call{max}{0, -pos}\)
+        \\
+        \State \(cumwtax = cumwtax + qwtax\)
+        \State \(cumitax = cumitax + qitax\)
+        \State \(cumvatax = cumvatax + \Call{sum}{qvatax}\)
+        \State \(cumctax = cumctax + qctax\)
+        \State \(cumws = cumws + qws\)
+        \State \(cuml = \frac{l + cuml * (j - 1)}{j}\)
+        \State \(cumsubs = cumsubs + qsubs\)
+        \State \(cumtrans = cumtrans + qtrans\)
+        \For{\(i = 0, 1,\dots,NSEC - 1\)}
+        \State \(cumpurch\left[i\right] = qpurch\left[i\right]\)
+        \EndFor
+        \State \(cuminv = cuminv + qinv\)
+        \State \(cumint = cumint + qint + qintfor\)
+        \State \(cummprint = cummprint + qmprint\)
+        \\
+        \If{\(relative\_quarter = 3\)}
+        \State \(wtax = cumwtax\)
+        \State \(itax = cumitax\)
+        \State \(vatax = cumvatax\)
+        \State \(ctax = cumctax\)
+        \State \(dws = \frac{cumws}{ws} - 1\)
+        \State \(ws = ws * (1 + dws)\)
+        \State \(dw = \frac{cumws}{cuml * w} - 1\)
+        \State \(w = w * (1 + dw)\)
+        \algstore{governmentaccounting}
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+    \begin{algorithmic}
+        \algrestore{governmentaccounting}
+        \State \(subs = cumsubs\)
+        \State \(trans = cumtrans\)
+        \For{\(i = 0, 1,\dots, NSEC - 1\)}
+        \State \(purch\left[i\right] = cumpurch\left[i\right]\)
+        \EndFor
+        \State \(sp = ws + subs + trans + \Call{sum}{purch}\)
+        \State \(inv = cuminv\)
+        \State \(intg = cumint\)
+        \State \(surplus = wtax + itax + vatax + ctax + intg - sp - inv\)
+        \State \(mprint = cummprint\)
+        \EndIf
+        \EndFunction
+    \end{algorithmic}
+    \small posfor is a policy option.
+\end{algorithm}
+
+\clearpage
+\subsection{Monetary Sector}
+
+\begin{algorithm}[H]
+\caption{Monetary Sector}
+    \begin{algorithmic}
+        \Function{monetary\_sector}{}
+        \State \Call{Bank::bank\_transactions}{}
+        \State \Call{Bank::credit\_market}{}
+        \State \Call{invfin\_adjustments}{}
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Bank Transactions}
+    \begin{algorithmic}
+        \Function{Bank::bank\_transactions}{}
+        \State \(rfpay = \frac{ri - ribwfor}{maxridiff}\)
+        \\
+        \State \(qfasspay = \frac{fass + qexport}{1 + 4 * tmfass * (1 - rfpay)}\)
+        \State \(qchfass = qexport - qfasspay\)
+        \State \(fass = fass + qchfass\)
+        \\
+        \State \(qfdpay = \frac{fd + qimport}{1 + 4 * tmfd * (1 + rfpay)}\)
+        \State \(qchfd = qimport - qfdpay\)
+        \State \(fd = fd + qchfd\)
+        \\
+        \State \(qchliqbfor = qfasspay + Government::qintfor - qfdpay - Government::qchposfor\)
+        \State \(liqbfor = liqbfor + qchliqbfor\)
+        \\
+        \State \(qchliqb = qintf + qsav + Government::qchpos + qimport + Government::qchposfor - qintk2 - Household::qint - Government::qint - qexport - Government::qintfor\)
+        \EndFunction
+    \end{algorithmic}
+    \small Clamp rfpay between -lamda2 and lamda2.
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Credit Market}
+    \begin{algorithmic}
+        \Function{Bank::credit\_market}{}
+        \State \(qdemfund = \Call{max}{0, -Government::qchpos} + \Call{sum}{\Call{max}{0, qdeschbw}}\)
+        \\
+    \State \(qsupfund1 = \frac{liqb + qchliqb + \Call{sum}{qdeschk2} - rfund1 * (\Call{sum}{bw} + Government::bw + \Call{max}{0, -wh * nh})}{1 + rfund1}\)
+        \State \(qsupfund2 = liqb + qchliqb + \Call{sum}{qdeschk2} - rfund2 * (\Call{sum}{k2 + qdeschk2} + Government::dep + \Call{max}{0, wh * nh})\)
+        \State \(qsupfund = \Call{max}{0, \Call{min}{qsupfund1, qsupfund2}}\)
+        \\
+        \State \(qsavhreq = \Call{min}{kappa1 * \Call{max}{0, qdi * nh}, \Call{max}{0, qdemfund - qsupfund}}\)
+        \State \(qredtbw = \Call{min}{kappa2 * \Call{sum}{\Call{max}{0, qdeschbw}}, \Call{max}{0, qdemfund - qsupfund - qsavhreq}}\)
+        \ForAll{firms}
+        \State \(qchbw = qdeschbw - qredtbw * \frac{\Call{max}{0, qdeschbw}}{\Call{sum}{\Call{max}{0, qdeschbw}}}\)
+        \EndFor
+        \\
+        \State \(qchri = lamda1 * \frac{qdemfund - qsupfund}{\Call{max}{1, qdemfund}}\)
+        \State \(ri = ri + qchri\)
+        \algstore{creditmarket}
+    \end{algorithmic}
+\end{algorithm}
+\begin{algorithm}[H]
+    \begin{algorithmic}
+        \algrestore{creditmarket}
+        \State \(rif = ri\)
+        \State \(rih = ri - mb\)
+        \State \(rik2 = ri - mb\)
+        \State \(ribwg = ri\)
+        \State \(ridepg = ri - mb\)
+        \State \(ribwgfor = ribwfor\)
+        \State \(ridepgfor = ridepfor\)
+        \EndFunction
+    \end{algorithmic}
+    \small Clamp ri between minri and maxri
+\end{algorithm}
+\begin{algorithm}[!htbp]
+\caption{Invfin Adjustments}
+    \begin{algorithmic}
+        \Function{invfin\_adjustments}{}
+        \State \(oldinv = \Call{sum}{qinvlag}\)
+        \ForAll{firms}
+        \State \(bw = bw + qchbw\)
+        \State \(qinvlag = \Call{max}{0, qcash + qchbw - qdeschk2}\)
+        \State \(qchk2 = qcash + qchbw - qinvlag\)
+        \State \(k2 = k2 + qchk2\)
+        \\
+        \State \(nw = k1 + k2 + k3 - bw\)
+        \If{\(nw < 0\)}
+        \State \(bad = bad + 1\)
+        \EndIf
+        \If{\(bad \geq 6\)}
+        \State \Call{nullify\_firm}{}
+        \EndIf
+        \EndFor
+        \\
+        \If{no firms left in a market}
+        \State exit simulation
+        \EndIf
+        \\
+        \State \(qtchbw = \Call{sum}{qchbw}\)
+        \State \(qtchinv = \Call{sum}{qinvlag} - oldinv\)
+        \State \(qtchk2 = \Call{sum}{qchk2}\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Bank Update}
+    \begin{algorithmic}
+        \Function{Bank::bank\_update}{}
+        \State \(qchliqb = qchliqb + qtchk2 - qtchbw\)
+        \State \(liqb = liqb + qchliqb\)
+        \\
+        \State \(assets = \Call{sum}{bw} + fass + liqbfor + liqb\)
+    \State \(liabilities = \Call{sum}{k2} + wh * nh + Government::pos + fd\)
+        \State \(nw = assets - liabilities\)
+        \\
+        \State \(money = \Call{sum}{k2} + Government::dep + wh * nh\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\subsection{National Accounting}
+
+\begin{algorithm}[H]
+\caption{National Accounting}
+    \begin{algorithmic}
+        \Function{national\_accounting}{}
+            \ForAll{markets}
+            \State \(qchtstocurf = \Call{sum}{k3finish} - tstocurf\)
+            \State \(tstocurf = tstocurf + qchtstocurf\)
+            \State \(qchtstocurm = \Call{sum}{sto * qpdom} - tstocurm\)
+            \State \(tstocurm = tstocurm + qchtstocurm\)
+            \\
+            \State \(qgnpcur\left[id\right] = \Call{sum}{qsnet} + qchtstocurf\) \Comment{Explicit sector production}
+            \State \(qgnpfix\left[id\right] = pref * (\Call{sum}{qq} - qwaste)\)
+            \EndFor
+            \ForAll{externals}
+            \State \(qgnpcur\left[id\right] = cva\) \Comment{External sector production}
+            \State \(qgnpfix\left[id\right] = pref * qq\)
+            \EndFor
+            \\
+            \State \(qgnpcur\left[10\right] = \Call{sum}{qvatax} + \Call{sum}{qchtstocurm - qchtstocurf} - qvataximp\) \Comment{Indirect taxes}
+            \State \(qgnpcur\left[11\right] = -qsubs - qsubscash\) \Comment{Subsidies}
+            \State \(qgnpcur\left[12\right] = Government::qws\) \Comment{Government wages}
+            \State \(qgnpcur\left[13\right] = \Call{sum}{qpurch}\) \Comment{Government purchases}
+            \State \(qgnpcur\left[14\right] = nh * \Call{sum}{qsp} - qsav\) \Comment{Private consumption}
+            \State \(qgnpcur\left[15\right] = \Call{sum}{qinvlag} - qtchinv\) \Comment{Investments (explicit sectors)}
+            \State \(qgnpcur\left[16\right] = qinvin\) \Comment{Investments (external sectors, exclusive of housing)}
+            \State \(qgnpcur\left[17\right] = qinvbld\) \Comment{Investments (residential construction)}
+            \State \(qgnpcur\left[18\right] = Government::qinv\) \Comment{Investments (government)}
+            \State \(qgnpcur\left[19\right] = \Call{sum}{qchtstocurm}\) \Comment{Inventory changes}
+            \State \(qgnpcur\left[20\right] = qexport\) \Comment{Exports}
+            \State \(qgnpcur\left[21\right] = -(qimport - qvataximp)\) \Comment{Imports}
+            \\
+            \State \(qnpgfix\left[10\right] = Government::l * \frac{wgref}{4}\) \Comment{Government wages deflated to reference}
+            \State \(qgnpfix\left[11\right] = \Call{sum}{pref * \frac{qpurch}{qpdom}}\) \Comment{Government purchases}
+            \State \(qgnpfix\left[12\right] = \Call{sum}{pref * \frac{qsp * nh}{qpdom}}\) \Comment{Private consumption (non-saving categories)}
+            \State \(qgnpfix\left[13\right] = \frac{\Call{sum}{pref * omega * (\Call{sum}{qinvlag} - qtchinv)}}{qpdom * \frac{1 - txva2}{1 - txva1}}\) \Comment{Investments (explicit sectors)}
+            \State \(qgnpfix\left[14\right] = \frac{\Call{sum}{pref * omegain * qinvin}}{qpdom * \frac{1 - txva2}{1 - txva1}}\) \Comment{Investments (external sectors, exclusive of housing)}
+            \State \(qgnpfix\left[15\right] = \frac{\Call{sum}{pref * omegabld * qinvbld}}{qpdom * \frac{1 - txva2}{1 - txva1}}\) \Comment{Investments (residential construction)}
+            \State \(qgnpfix\left[16\right] = \frac{\Call{sum}{pref * omegeag * Government::qinv}}{qpdom * \frac{1 - txva2}{1 - txva1}}\) \Comment{Investments (government)}
+            \State \(qgnpfix\left[17\right] = \Call{sum}{pref * qchtsto}\) \Comment{Inventory changes}
+            \State \(qgnpfix\left[18\right] = \Call{sum}{pref * \Call{sum}{qsufor}} + \Call{sum}{pref * x * qq}\) \Comment{Exports}
+            \State \(qgnpfix\left[19\right] = -\Call{sum}{pref * qtbuyfor}\) \Comment{Imports}
+            \algstore{nationalaccounting}
+    \end{algorithmic}
+\end{algorithm}
+\begin{algorithm}[H]
+    \begin{algorithmic}
+        \algrestore{nationalaccounting}
+        \For{\(i = 0, 1, \dots,\)length of gnpcur}
+            \State \(cumgnpcur\left[i\right] = cumgnpcur\left[i\right] + qgnpcur\left[i\right]\)
+            \EndFor
+            \For{\(i = 0, 1, \dots,\) length of gnpfix}
+            \State \(cumgnpfix\left[i\right] = cumgnpfix\left[i\right] + qgnpfix\left[i\right]\)
+            \EndFor
+            \State \(cumexport = cumexport + qexport\)
+            \State \(cumimport = cumimport + qimport\)
+            \\
+            \If{\(relative\_quarter = 3\)}
+            \State \(gnpcur = cumgnpcur\)
+            \State \(gnpfix = cumgnpfix\)
+            \State \(export = cumexport\)
+            \State \(import = cumimport\)
+            \EndIf
+        \EndFunction
+    \end{algorithmic}
+    \small Sum across firms per market for explicit sector production.\\
+    \small The first sum for fixed exports is across markets. The second is across externals.
+\end{algorithm}
+
+\clearpage
+\section{Helper Functions}
+
+\begin{algorithm}[H]
+\caption{Qfr}
+    \begin{algorithmic}
+        \Function{Firm::qfr}{l}
+        \State \Return $wtix * (1 - res) * qtop * (1 - e^{-\frac{tec}{qtop} * l})$
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Rfq}
+    \begin{algorithmic}
+        \Function{Firm::rfq}{q}
+        \State \Return $\frac{qtop}{tec} * \Call{log}{\frac{wtix * (1 - res) * qtop}{wtix * (1 - res) * qtop - q}}$
+        \EndFunction
+    \end{algorithmic}
+    \small Logarithm is base e.
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Sat}
+    \begin{algorithmic}
+        \Function{Firm::sat}{q, l}
+        \If{$l > 0$}
+        \State $margin = 1 - \frac{l * \frac{qexpw}{4}}{q * qexppnet}$
+        \Else
+        \State $margin = 1 - \frac{\frac{qexpw}{4}}{wtix * (1 - res) * tec * qexppnet}$
+        \EndIf
+        \\
+        \If{$magin \geq qtargm$}
+        \State \Return true
+        \Else
+        \State \Return false
+        \EndIf
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Delay}
+    \begin{algorithmic}
+        \Function{Firm::delay}{}
+        \State \(delta = \frac{1}{1 + \frac{4 * tminv}{3}}\)
+        \\
+        \State \(inv\_delay\left[2\right] = inv\_delay\left[2\right] + qinvlag\)
+        \State \(inv\_delay\left[1\right] = inv\_delay\left[1\right] + delta * inv\_delay\left[2\right]\)
+        \State \(inv\_delay\left[2\right] = inv\_delay\left[2\right] - delta * inv\_delay\left[2\right]\)
+        \State \(inv\_delay\left[0\right] = inv\_delay\left[0\right] + delta * inv\_delay\left[1\right]\)
+        \State \(inv\_delay\left[1\right] = inv\_delay\left[1\right] - delta * inv\_delay\left[1\right]\)
+        \\
+        \State \(ret = delta * inv\_delay\left[0\right]\)
+        \State \(inv\_delay\left[0\right] = inv\_delay\left[0\right] * (1 - delta)\)
+        \State \Return \(ret\)
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Bw Ratio}
+    \begin{algorithmic}
+        \Function{Firm::check\_bw}{bw\_ratio}
+        \State \(val = 1 - bw\_ratio\)
+        \If{\(val > 0.3\)}
+        \State \Return 1
+        \ElsIf{\(val \leq 0.1\)}
+        \State \Return 0
+        \Else
+        \State \Return \(0.0025 * (\Call{floor}{100 * val + 0.5} - 10)^2\)
+        \EndIf
+        \EndFunction
+    \end{algorithmic}
+    \small \Call{floor}{} rounds down to the nearest integer.
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Solve}
+    \begin{algorithmic}
+        \Function{Firm::solve}{}
+        \State $MAX\_ITERATIONS = 100$
+        \State $TOLERANCE = 0.001$
+        \State $b = \frac{qexpw}{(1 - qtargm) * wtix * (1 - res) * tec * qexppnet * 4}$
+        \State $y = \frac{1}{b}$
+        \\
+        \For{$i = 0,1, \dots,MAX\_ITERATIONS - 1$}
+        \State $f = b * y + e^{-y} - 1$
+        \State $f\_prime = b - e^{-y}$
+        \State $delta = \frac{f}{f\_prime}$
+        \State $y = y - delta$
+        \\
+        \If{$|delta| < TOLERANCE$}
+        \State $qplanl = y * \frac{qtop}{tec}$
+        \State $qplanq = \Call{qfr}{qplanl}$
+        \State \Return
+        \EndIf
+        \EndFor
+        \EndFunction
+    \end{algorithmic}
+    \small Newton-Rhapson method.
+\end{algorithm}
+
+\begin{algorithm}[!htbp]
+\caption{Nullify Firm}
+    \begin{algorithmic}
+        \Function{nullify\_firm}{}
+        \State $lu = lu + l$
+        \State remove firm from the container of firms
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Choose Labour Target}
+    \begin{algorithmic}
+        \Function{choose\_labour\_target}{}
+        \State $len = $ length of $ll$ \Comment{(firm labour concatenated to the unemployment pool)}
+        \State $scaled\_unemployment = ll\left[len - 1\right] * skrepa$
+        \State $total\_labour = \Call{sum}{ll} - ll\left[len - 1\right] + scaled\_unemployment$
+        \State $rand\_val = $ random value between $0$ and $total\_labour$
+        \\
+        \State $target = ll\left[len - 1\right]$ \Comment{default to unemployment pool}{}
+        \State $cumsum = 0$
+        \For{$j = 0,1,\dots,len - 1$}
+        \If{$j$ is the unemployment pool}
+        \State $cumsum = cumsum + scaled\_unemployment$
+        \Else
+        \State $cumsum = cumsum + ll\left[j\right]$
+        \EndIf
+        \If{$cumsum > rand\_val$}
+        \State $target = j$
+        \State \textbf{break}
+        \EndIf
+        \EndFor
+        \State \Return target
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm}
+
+\clearpage
+\listofalgorithms
+
+\clearpage
+\section{Variable List}
+
+Simulation variables are categorised by class. $double$ is the data type for real numbers. $int$ is the data type for integers. $const$ specifies the variable remains constant during simulation. Data types ending with $(init)$ are initialised from csv files before simulation start. Square brackets indicates the variable is an array. For example, $ribwfor$ is a $const$ $double\left[120\right]$. This means the rate of interest on foreign borrowing is an array of 120 constant real numbers. In other words, the array is an exogenous input variable that controls the rate of interest on foreign borrowing for each simulation quarter.
+
+\begin{longtable}{p{0.14\textwidth}p{0.223\textwidth}p{0.556\textwidth}}
+\toprule
+\textbf{Variable} & \textbf{Data Type} & \textbf{Description} \\
+\midrule
+\endhead
+
+\multicolumn{3}{l}{\textbf{Indexing constants}} \\
+\midrule
+DUR & const int & Index of the durables sector. \\
+NSEC & const int & Number of sectors. \\
+MAXT & const int & Max number of simulation quarters. \\
+MAXY & const int & Max number of simulation years. \\
+NEXPH & const int & Number of household expenditure categories. \\
+NEXT & const int & Number of external sectors. \\
+NGNPCUR & const int & Number of accounting values in gnpcur \\
+NGNPFIX & const int & Number of accounting values in gnpfix \\
+NMKT & const int & Number of market sectors. \\
+SAV & const int & Index of savings. \\
+\midrule
+
+
+\multicolumn{3}{l}{\textbf{Bank}} \\
+\midrule
+fass & double (init) & Holding of foreign trade credits (claims on foreign importers).\\
+fd & double (init) & Sum of debts to foreign suppliers of Swedish imports.\\
+kappa1 & const double (init) & Maximum fraction of household's disposable income that can be stipulated as a reduction in household borrowing (increased net savings) in case of excess demand on the credit market.\\
+kappa2 & const double (init) & Maximum fractional reduction of firms' desired new borrowing in case of excess demand on the credit market.\\
+lamda1 & const double (init) & Used to compute the change in the rate of interest effected by supply-demand conditions in the credit market.\\
+lamda2 & const double (init) & Indicates how the foreign/domestic differential in the rate of interest impacts on average payment times for foreign trade credits.\\
+liqb & double (init) & Holdings of "liquidity", of an unspecified nature.\\
+liqbfor & double (init) & Holdings of foreign "liquidity", of an unspecified nature.\\
+maxqchri & const double (init) & Limit on the rate of change for the rate of interest.\\
+maxri & const double (init) & Ceiling on the rate-of-interest movements, used in the credit market.\\
+maxridiff & const double (init) & Maximum difference between foreign and domestic rate of interest, which is allowed to have an impact on the rate of payment of foreign trade credits.\\
+mb & const double (init) & Prescribed differential between domestic borrowing and lending rates of interest.\\
+minri & const double (init) & Floor for rate-of-interest movements.\\
+money & double & The stock of money in the economy, defined as total deposits in the bank.\\
+nw & double (init) & Net value (assets - liabilities).\\
+qbuy & double[NSEC] & Quarterly purchasing from each sector (volume terms).\\
+qchfass & double & Quarterly change in the aggregate stock of trade credits to foreigners.\\
+qchfd & double & Quarterly change in the aggregate stock of trade debts to foreigners.\\
+qchliqb & double & Quarterly change in the bank's liquidity.\\
+qchliqbfor & double & Quarterly change in foreign liquidity.\\
+qchri & double (init) & Quarterly change in the base rate of interest.\\
+qdemfund & double & Total quarterly demand on funds for new borrowing, from firms and the government.\\
+qfasspay & double & Quarterly payment of trade credits, reducing the stock fd of debt to foreigners.\\
+qfdpay & double & Quarterly payments of trade debts, reducing the stock fd of debt to foreigners.\\
+qinvtot & double & Quarterly aggregate investments in the economy (money terms).\\
+qsupfund & double & Availability of funds for new borrowing during one quarter, in concordance with prevailing monetary restrictions.\\
+qsupfund1 & double & Quarterly ceiling on the availability of funds for new borrowing, related to the necessity to have a liquidity in proportion to total lending.\\
+qsupfund2 & double & Quarterly ceiling on the availability of funds for new borrowing, related to the necessity to have a liquidity in proportion to total deposits in the bank.\\
+qtchbw & double & Total quarterly new borrowing for all firms.\\
+qtchinv & double & Total quarterly change in investments for all firms.\\
+qtchk2 & double & Total quarterly change in current assets for all firms.\\
+qredtbw & double & Total quarterly amount firms must lower desired new borrowing, in the case of excess demand for funds.\\
+rfpay & double & Accounts the effect of foreign/domestic rate-of-interest differentials on payment periods for foreign trade credits and debts.\\
+rfund1 & const double (init) & Fraction indicating the liquidity restriction on the bank as regards total lending.\\
+rfund2 & const double (init) & Fraction indicating the liquidity restriction on the bank as regards total deposits.\\
+ri & double (init) & Base rate of interest, in parallel with which all other domestic rates move.\\
+ribwfor & const double[MAXT] (init) & Exogenous foreign lending rate of interest.\\
+ribwg & double & Rate of interest on government domestic borrowing.\\
+ribwgfor & double & Rate of interest on government foreign borrowing.\\
+ridepfor & const double[MAXT] (init) & Exogenous foreign deposit rate of interest.\\
+ridepg & double & Rate of interest on government domestic deposits.\\
+ridepgfor & double & Rate of interest on government foreign deposits.\\
+rif & double & Rate of interest on firms' borrowing from the bank.\\
+rih & double & Rate of interest on household savings.\\
+rik2 & double & Rate of interest on firms' deposits in the bank.\\
+tmfass & const double (init) & Average payment period for foreign trade credits.\\
+tmfd & const double (init) & Average payment period for foreign trade debts.\\
+\midrule
+
+\multicolumn{3}{l}{\textbf{Firm}} \\
+\midrule
+aman & double[3] (init) & Vector accommodating the two-quarter lag of layoffs. The first component holds the number of people that can be fired this quarter, etc.\\
+bad & double & Number of quarters the net worth has been negative.\\
+big & const double (init) & Fraction of current yearly sales that firms consider as maximum for their finished-goods inventories.\\
+bw & double (init) & Total borrowing.\\
+chm & double (init) & Change in profit margin from one year to another.\\
+cuminv & double & Yearly cumulation of investments.\\
+cuml & double & Yearly cumulation of the number of employed.\\
+cumm & double & Yearly cumulation of the profit margin.\\
+cump & double & Yearly cumulation of the sales price.\\
+cumq & double & Yearly cumulation of production volume.\\
+cums & double & Yearly cumulation of sales value.\\
+cumsnet & double & Yearly cumulation of net sales\\
+cumsu & double & Yearly cumulation of sales volume.\\
+cumva & double & Yearly cumulation of value added.\\
+cumws & double & Yearly cumulation of the wage sum.\\
+curp & double & Estimate of current yearly sales price, compatible with longer-term trends. (help variable)\\
+curs & double & Estimate of current yearly sales, compatible with longer-term trends. (help variable)\\
+dp & double (init) & Yearly change in sales price (a fraction).\\
+dq & double & Yearly change in production volume (a fraction).\\
+ds & double (init) & Yearly change in sales value (a fraction).\\
+dva & double & Yearly change in value added (a fraction).\\
+dw & double (init) & The yearly change in wage (a fraction).\\
+exit & double & Discrepancy between actual and planned labour force (after market interactions). (help variable)\\
+expdp & double & Yearly expected change in sales price (a fraction).\\
+expds & double & Yearly expected change in sales (a fraction).\\
+expdw & double & Yearly expected change in wage (a fraction).\\
+expidp & double & Yearly "internally" expected change in sales price (a fraction).\\
+expids & double & Yearly "internally" expected change in sales (a fraction).\\
+expidw & double & Yearly "internally" expected change in wage (a fraction).\\
+histdp & double (init) & Time-smoothed average of experienced yearly price increase.\\
+histdpdev & double (init) & Time-smoothed average of the difference between actual and expected yearly price increase.\\
+histdpdev2 & double (init) & Time-smoothed average of the square of the difference between actual and expected yearly price increase.\\
+histds & double (init) & Time-smoothed average of experienced yearly sales increase.\\
+histdsdev & double (init) & Time-smoothed average of the difference between actual and expected yearly sales increase.\\
+histdsdev2 & double (init) & Time-smoothed average of the square of the difference between actual and expected yearly sales increase.\\
+histdw & double (init) & Time-smoothed average of experienced yearly increase in wage level.\\
+histdwdev & double (init) & Time-smoothed average of the difference between actual and expected yearly increase in wage level.\\
+histdwdev2 & double (init) & Time-smoothed average of the square of the difference between actual and expected yearly increase in wage level.\\
+id & const int (init) & Identification number.\\
+imbig & const double (init) & Fraction of one year's use of a certain input good, which a firm considers as the maximum inventory level for that good.\\
+imsmall & const double (init) & Fraction of one year's use of a certain input good, which a firm considers as the minimum inventory level for that good.\\
+imsto & double[NSEC] (init) & Inventory level for each kind of input good.\\
+inv\_delay & double[3] & Investment delay help variable used in \Call{delay}{}.\\
+inveff & double & Investment efficiency.\\
+k1 & double (init) & Replacement value of production equipment.\\
+k1book & double (init) & Replacement value of production equipment (book).\\
+k2 & double (init) & Current assets.\\
+k3 & double & Value of total inventory.\\
+k3imed & double & Value of input-goods inventory.\\
+k3finish & double & Value of finished-goods inventory.\\
+l & double (init) & Labour force.\\
+layoff & double & Discrepancy between actual and planned labour force (before market interactions). (help variable)\\
+m & double (init) & Profit margin.\\
+market\_id & const int (init) & Index of the sector the firm is part of.\\
+maximsto & double[NSEC] & "Maximum" inventory levels of each kind of input good (volume terms).\\
+maxsto & double & "Maximum" inventory level (volume terms).\\
+mhist & double (init) & Average of past profit margins (a fraction).\\
+minimsto & double[NSEC] & "Minimum" level for inventories of each kind of input good (volume terms).\\
+minsto & double & "Minimum" inventory level (volume terms).\\
+now & double & Number of people hired in one successful attack on the labour market. (help variable).\\
+nw & double & Net value (assets - borrowing).\\
+optimsto & double[NSEC] & Optimum inventory level for each kind of input good (volume terms).\\
+optsto & double & "Optimum" level for finished-goods inventory (volume terms).\\
+p & double (init) & Yearly average sales price.\\
+q & double (init) & Yearly total production.\\
+qcash & double & Net cash inflow during one quarter, before new borrowing and payments of investments.\\
+qchbw & double & Quarterly change in borrowing.\\
+qchk2 & double & Quarterly change in current assets.\\
+qchl & double & Quarterly labour force changes due to labour market interactions (retirements are not included).\\
+qchqtop & double & Quarterly change in production capacity due to investments.\\
+qchqtop1 & double & Quarterly change in production capacity due to investments that can be used regardless of slack considerations.\\
+qchqtop2 & double & Quarterly change in production capacity due to investments (part that goes into slack).\\
+qchw & double & Quarterly wage change in absolute terms.\\
+qdepr & double & Quarterly depreciation of production equipment at replacement value.\\
+qdeprbook & double & Quarterly depreciation of production equipment at book value (for taxation purposes).\\
+qdeschbw & double & Desired new borrowing for one quarter.\\
+qdeschk2 & double & Desired change in current assets, to make these a certain proportion of sales.\\
+qdiv & double & Quarterly dividend payments to the household aggregate.\\
+qdp & double & Quarterly change in domestic price (a fraction).\\
+qdpk & double & Quarterly relative price change for investment goods (equal for all firms).\\
+qdq & double & Quarterly change in production volume (a fraction).\\
+qds & double (init) & Quarterly change in sales value (a fraction)\\
+qdva & double & Quarterly change in value added in current prices (a fraction).\\
+qdw & double & Quarterly change in wage (a fraction).\\
+qexpdp & double & Expected quarterly change in sales price (a fraction).\\
+qexpds & double & Expected quarterly change in sales (a fraction).\\
+qexpdw & double & Expected quarterly change in wage (a fraction).\\
+qexpp & double & Expected quarterly sales price.\\
+qexppnet & double & Expected "net" sales price for the next quarter, with reductions for purchases of input goods.\\
+qexpds & double & Expected quarterly change in sales value (a fraction).\\
+qexps & double & Expected quarterly sales value.\\
+qexpsu & double & Expected quarterly sales volume.\\
+qexpdw & double & Expected quarterly change in wage.\\
+qexpw & double & Expected quarterly wage.\\
+qimq & double[NSEC] & Quarterly quantity (volume terms) bought of each kind of input-good.\\
+qinv & double (init) & Quarterly installed investments (value terms).\\
+qinvlag & double (init) & The money allocated for investments during one quarter, entering as demand on the product market next quarter.\\
+qm & double & Quarterly profit margin.\\
+qoptsu & double & Quarterly optimum sold volume.\\
+qoptsudom & double & Quarterly optimum domestically sold volume.\\
+qp & double (init) & Quarterly sales price.\\
+qplanl & double & Quarterly planned labour force.\\
+qplanq & double & Quarterly planned production volume.\\
+qplanqsave & double & Help variable to save unmodified qplanq.\\
+qq & double (init) & Quarterly production volume.\\
+qrev & double & Quarterly gross revenue\\
+qrr & double & Quarterly rate of return before taxes.\\
+qs & double (init) & Quarterly sales value.\\
+qsdom & double & Quarterly domestic sales value.\\
+qsfor & double & Quarterly foreign sales value.\\
+qsnet & double & Quarterly net sales value (less purchases of input-goods).\\
+qsu & double & Quarterly sales volume.\\
+qsudom & double & Quarterly domestic sales volume.\\
+qsufor & double & Quarterly foreign sales volume.\\
+qtargm & double & Quarterly target profit-margin.\\
+qtax & double & Quarterly corporate tax.\\
+qtop & double (init) & Quarterly potential output (units) at zero slack and infinite labour force.\\
+qva & double (init) & Quarterly value added.\\
+qw & double (init) & Quarterly wage level.\\
+q2 & double & Maximum quarterly production regarding sales plan and inventory maximum. (help variable)\\
+q7 & double & Quarterly production level, below which structural slack is activated. (help variable)\\
+res & double (init) & Structural slack (fraction).\\
+rw & const double (init) & Desired working capital (k2) as a fraction of yearly sales.\\
+s & double (init) & Sales value.\\
+sack & double & Quarterly number of people fired. (help variable)\\
+share & const double (init) & Purchasing share of input-goods (used together with io).\\
+small & const double (init) & Fraction of yearly sales considered as minimum for finished-goods inventories.\\
+snet & double & Net sales value (less purchases of input goods).\\
+sto & double (init) & Current inventory level (volume terms).\\
+targm & double & Target profit-margin.\\
+tec & double (init) & Technology factor (units per person and quarter)\\
+va & double (init) & Value added.\\
+w & double (init) & Wage level.\\
+x & double (init) & Export share (fraction of sold volume).\\
+\midrule
+
+\multicolumn{3}{l}{\textbf{Government}} \\
+\midrule
+bw & double & Domestic borrowing.\\
+bwfor & double & Foreign borrowing.\\
+ctax & double & Yearly aggregate corporate taxes.\\
+cumctax & double & Yearly cumulative corporate taxes.\\
+cumint & double & Yearly cumulative net interest receipts.\\
+cuminv & double & Yearly cumulative investments.\\
+cumitax & double & Yearly cumulative aggregate income taxes.\\
+cuml & double & Yearly cumulative labour force.\\
+cummprint & double & Yearly cumulative changes in the monetary base.\\
+cumpurch & double & Yearly cumulative purchases of goods and services (less investments).\\
+cumsubs & double & Yearly cumulative subsidies of the industry.\\
+cumtrans & double & Yearly cumulative aggregate transfer payments to households.\\
+cumvatax & double & Yearly cumulative aggregate value added tax.\\
+cumws & double & Yearly cumulative wage sum.\\
+cumwtax & double & Yearly cumulative aggregate payroll taxes.\\
+dep & double & Domestic bank deposits.\\
+depfor & double & Foreign bank deposits.\\
+dw & double & Yearly change in wage (a fraction).\\
+dws & double & Yearly change in wage sum (a fraction).\\
+gkoff & const double[NSEC] (init) & Purchasing (less investments) in each sector, as a fraction of wage sum.\\
+intg & double & Yearly net interest receipts\\
+inv & double & Yearly Investments.\\
+itax & double & Yearly aggregate income taxes.\\
+l & & double (init) Labour force.\\
+mprint & double & Yearly change in the monetary base (absolute value).\\
+omega & const double[NSEC] (init) & Distribution vector of firms' outlays for investments allocated on purchases from each sector.\\
+omegabld & const double[NSEC] (init) & Distribution vector of investments in residential construction allocated on purchases from each sector.\\
+omegag & const double[NSEC] (init) & Distribution vector of government investments allocated on purchases from each sector.\\
+omegain & const double[NSEC] (init) & Distribution vector of external sector investments allocated on purchases from each sector.\\
+pos & double (init) & Net position in the bank.\\
+posfor & double (init) & Net foreign deposit/borrowing position.\\
+purch & double[NSEC] & Yearly purchases of goods and services (less investments) for each sector.\\
+qbuy & double[NSEC] & Quarterly purchasing from each sector (volume terms).\\
+qchl & double & Quarterly change in labour force.\\
+qchpos & double & Quarterly change in net bank position.\\
+qchposfor & double (init) & Quarterly change in net foreign deposit/borrowing position.\\
+qchtxva1 & const double[MAXT] & Quarterly change in value-added tax rate for investment goods. Entered exogenously.\\
+qchtxva2 & const double[MAXT] & Quarterly change in value-added tax rate for non-investment goods. Entered exogenously.\\
+qctax & double & Quarterly aggregate corporate taxes.\\
+qdw & double & Quarterly change in wage (a fraction).\\
+qint & double & Quarterly net domestic interest receipts.\\
+qintfor & double & Quarterly net foreign interest receipts.\\
+qinv & double (init) & Quarterly investments. Entered exogenously.\\
+qinvbld & double (init) & Quarterly aggregate investments in residential construction. Entered exogenously.\\
+qinvin & double (init) & Quarterly aggregate investments by external sectors (less residential construction). Entered exogenously.\\
+qitax & double & Quarterly aggregate income taxes.\\
+qmprint & double & Quarterly change in the monetary base (absolute value).\\
+qpurch & double[NSEC] & Quarterly purchases (money terms) of goods and services (less investments) from each sector.\\
+qrealchl & double (init) & Quarterly net change in employment. Entered exogenously.\\
+qsp & double & Total quarterly expenditures (less investments and interest payments).\\
+qsubs & double & Total quarterly subsidy payments to firms.\\
+qsubscash & double & Temporary quarterly subsidy payments to firms ("liquidity injections").\\
+qsubsdom & double & Quarterly subsidy payments to firms (domestic sales).\\
+qsubsfor & double & Quarterly subsidy payments to firms (exports).\\
+qsurplus & double & Quarterly surplus.\\
+qtrans & double & Quarterly transfer payments to households.\\
+qttax & double (init) & Total quarterly tax receipts.\\
+qvatax & double[NSEC] & Quarterly value added tax for each sector.\\
+qvataximp& double  & Quarterly part of total value added taxes which is related to imports. \\
+qw & double (init) & Wage level.\\
+qws & double & Quarterly wage sum.\\
+qwtax & double & Quarterly aggregate payroll taxes.\\
+rsubscash & const double (init) & Fraction used to compute temporary government subsidies to firms ("liquidity injections") in relation to sales value. \\
+sp & double & Total yearly expenditures (less investments and interest payments).\\
+subs & double & Total yearly subsidies to firms.\\
+surplus & double & Yearly surplus.\\
+trans & double & Yearly transfer payments to the household aggregate.\\
+txc & const double[MAXY] (init) & Exogenous corporate-tax rate.\\
+txi1 & & const double[MAXY] (init)\\
+txva1 & const double (init) & Exogenous value-added-tax rate (investment goods).\\
+txva2 & const double (init) & Exogenous value-added-tax rate rate (non-investment goods).\\
+txw & const double[MAXY] (init) & Exogenous payroll-tax rate for non-government sectors.\\
+txwg & const double[MAXY] (init) & Exogenous payroll-tax rate for government sectors.\\
+vatax & double & Total yearly value added tax.\\
+w & double (init) & Yearly average wage.\\
+wgref & const double (init) & Wage level for a reference year.\\
+ws & double (init) & Total yearly wage sum.\\
+wtax & double & Total yearly payroll taxes.\\
+\midrule
+
+\multicolumn{3}{l}{\textbf{Household}} \\
+\midrule
+alfa3 & const double (init) & Constant used to determined short-term swap between savings and expenditures on durables.\\
+alfa4 & const double (init) & Constant used to determined short-term swap between savings and expenditures on durables.\\
+beta1 & const double[NEXPH] (init) & Constant used to adjust household expenditures to the income constraint (All beta1 $\geq$ 0).\\
+beta2 & const double[NEXPH] (init) & Constant used to adjust household expenditures to the income constraint (\Call{SUM}{beta2} = 1).\\
+beta3 & const double[NEXPH] (init) & Constant used to adjust household expenditures to the income constraint (\Call{SUM}{beta3} = 0).\\
+cva & double[NSEC] (init) & Quarterly "addicted" consumption volume (units) in each expenditure category.\\
+nh & const double (init) & Number of households.\\
+pt & double[NSEC] & Offering price in each sector for each market iteration.\\
+qbuy & double[NSEC] & Quarterly purchasing from each sector (volume terms).\\
+qc & double[NSEC] (init) & Quarterly consumption in each non-saving expenditure category.\\
+qchdcpi & double & Attempted change in consumer price index between quarters (a fraction).\\
+qcpi & double (init) & Consumer price index.\\
+qdcpi & double (init) & Quarterly change in consumer price index (a fraction).\\
+qdi & double & Quarterly disposable income.\\
+qinpay & double (init) & Quarterly aggregate wage and capital income from external sectors.\\
+qint & double & Quarterly aggregate interest receipts.\\
+qp & double[NSEC] (init) & Quarterly domestic price in each expenditure category as households see them.\\
+qprelcpi & double & Preliminary consumer price index.\\
+qsav & double & Quarterly aggregate savings.\\
+qsavhreq & double (init) & Quarterly reduction in aggregate borrowing (forced increase in net savings) in the case of an excess demand for funds.\\
+qsp & double[NEXPH] & Quarterly expenditure in each category.\\
+qspe & double[NEXPH] & Quarterly "essential" expenditure in each category.\\
+qspsavreq & double & Quarterly reduction in new borrowing (forced increase in new savings) in the case of excess demand for funds.\\
+qtdiv & double (init) & Quarterly dividend payments from firms to households.\\
+qti & double & Total quarterly income (before taxes).\\
+qtws & double & Total quarterly wage sum in the economy (before payroll taxes).\\
+rhodur & const double (init) & Depreciation rate of consumer durable goods (a fraction).\\
+rtrans & const double (init) & Ratio between total transfer payments to households (less unemployment compensation) and total taxes.\\
+smooth & const double[NEXPH] (init) & Constants used to time-smooth addicted consumption levels and the savings ratio.\\
+stodur & double (init) & Stock of durable goods (value terms).\\
+swap & double & Factor determining the short-term trade-off between savings and expenditures on consumer durables.\\
+wh & double (init) & Wealth (current value of bank deposits).\\
+whra & double (init) & Addicted wealth ratio (quotient between bank deposits and quarterly disposable income).\\
+\midrule
+
+\multicolumn{3}{l}{\textbf{Labour}} \\
+\midrule
+entry & const double (init) & Exogenous parameter regulating the inflow of new persons to the labour market (fraction of total labour).\\
+gamma & const double (init) & How big wage increase is needed for a person to leave a job for another.\\
+ksi & const double (init) & How much a firm raises its wage level after an unsuccessful labour attack.\\
+lf & double & Total labour force in the economy.\\
+lu & double (init) & Number of people unemployed.\\
+qchru & double & Quarterly change in rate of unemployment.\\
+qdwind & double (init) & Average quarterly wage change in the industry (a fraction).\\
+ret & const double (init) & Retirement rate on the labour market (a fraction).\\
+rlu & const double (init) & Fraction used to compute unemployment compensation in proportion to average wage level in the industry.\\
+ru & double (init) & Rate of unemployment (a fraction).\\
+skrepa & const double (init) & Relative probability the unemployment pool is selected instead of firms during a labour market attack.\\
+theta & const double (init) & Maximum fraction of a firm's labour force that it can lose in one labour market attack.\\
+\midrule
+
+\multicolumn{3}{l}{\textbf{Moses}} \\
+\midrule
+bank & Bank &\\
+cumexport & double & Yearly cumulative aggregate export value.\\
+cumgnpcur & double[NGNPCUR] & Components of gross national product (current prices).\\
+cumgnpfix & double[NGNPFIX] & Components of gross national product (fixed prices).\\
+cumimport & double & Yearly cumulative aggregate import value.\\
+export & double & Yearly aggregate export value.\\
+externals & External[NEXT] & Container of the simulation's external sectors.\\
+firms & Firm[] & Container of the simulation's firms.\\
+gnpcur & double[NGNPCUR] & Yearly gross national product (current prices).\\
+gnpfix & double[GNPFIX] & Yearly gross national product (fixed prices).\\
+gov & Government & The simulation's Government class instance.\\
+hh & Household & The simulation's Household class instance.\\
+import & double & Yearly aggregate import value.\\
+lab & Labour & The simulation's Labour class instance.\\
+marketiter & const int (init) & Number of iterations on the domestic product market.\\
+markets & Market[NMKT] & Container of the simulation's explicitly producing model sectors.\\
+niteret. & const int (init) & Number of iterations on the labour mark\\
+qexport & double & Quarterly export value.\\
+qimport & double & Quarterly import value.\\
+qintf & double & Quarterly interest payments from firms to the bank.\\
+qintk2 & double & Quarterly interest receipts by firms.\\
+quarter & int & Current quarter in the simulation (0-indexed).\\
+relative\_quarter & int & Current quarter in the year (0-indexed).\\
+year & int & Current year in the simulation (0-indexed).\\
+\midrule
+
+\multicolumn{3}{l}{\textbf{Sector}} \\
+\midrule
+id & const int (init) & Sector index.\\
+imp & double (init) & Import share.\\
+io & const double[NSEC] (init) & Input-output coefficients. The amount of each input material a firm (or external sector) needs for production.\\
+more & double & Additional value added tax on investments.\\
+pref & const double (init) & Domestic prices from a reference year.\\
+qbuy & double[NSEC] & Quarterly purchasing from each sector (volume terms).\\
+qdpdom & double & Quarterly change in domestic price (a fraction).\\
+qexpdpim & double & Expected quarterly change in the purchase price of the input good (a fraction).\\
+qexppim & double & Expected quarterly purchase price of the input good.\\
+qpdom & double (init) & Quarterly domestic price.\\
+qpfor & double (init) & Quarterly foreign price.\\
+qtbuy & double & Quarterly aggregate purchasing from this sector (including imports).\\
+qtbuydom & double & Quarterly aggregate purchasing from this sector (excluding imports).\\
+qtbuyfor & double & Quarterly aggregate imports within this sector.\\
+tmimp & const double (init) & Time constant to adjust the import share.\\
+\midrule
+
+\multicolumn{3}{l}{\textbf{Market}} \\
+\midrule
+maxdp & const double (init) & Maximum yearly domestic price deviation from firm expectations.\\
+mtec & double (init) & Technology factor of modern equipment (potentially produced units per person per quarter).\\
+qchtsto & double & Quarterly change in inventory to be distributed between firms.\\
+qchtstocurf & double & Quarterly change in aggregate sector-level inventories, value at factor prices.\\
+qchtstocurm & double & Quarterly change in aggregate sector-level inventories, value at market prices.\\
+qdmtec & const double (init) & Quarterly rate of technology upgrade for production equipment (a fraction).\\
+qdpfor & const double[MAXT] (init) & Quarterly change in foreign price (a fraction).\\
+qmaxtsudom & double & Maximum quarterly sales volume due to minsto considerations. (help variable)\\
+qprelpdom & double & The firms' initial offering price.\\
+qtbuyfor1 & double & Quarterly aggregate "normal" (related to an import fraction) imports.\\
+qtbuyfor2 & double & Quarterly aggregate "extra" (in case of large excess demand) imports.\\
+qtsudom & double & Quarterly sold volume on the domestic market (exclusive of imports).\\
+qwaste & double & Quarterly waste that occurs in case of insufficient finished-goods inventory capacities.\\
+rsubs & const double (init) & Fraction used to compute government subsidies to firms in relation to their sales value.\\
+tminv & const double (init) & Average delay time to install investments in new production equipment.\\
+tmx & const double (init) & Time constant for firms to adjust their export share.\\
+totchsto & double & Total change in finished-goods inventories that remains to be distributed between firms. (help variable).\\
+tstocurf & double (init) & Aggregate finished-goods inventories (at factor prices).\\
+tstocurm & double (init) & Aggregate finished-goods inventories (at market prices).\\
+\midrule
+
+\multicolumn{3}{l}{\textbf{External}} \\
+\midrule
+qdp & const double[MAXT] (init) & Quarterly change in domestic price including value added tax (a fraction).\\
+qexportin & double & Quarterly export value.\\
+qq & double & Quarterly aggregate production volume.\\
+qsdom & double & Quarterly domestic sales value.\\
+qva & double & Quarterly value added.\\
+x & const double (init) & Export fraction.\\
+\bottomrule
+\end{longtable}
+
+\end{document}
